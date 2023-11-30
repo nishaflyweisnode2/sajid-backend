@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    fullName: {
+    firstName: {
+        type: String,
+    },
+    lastName: {
         type: String,
     },
     mobileNumber: {
@@ -61,6 +64,10 @@ const userSchema = new mongoose.Schema({
             type: String,
             default: null,
         },
+    },
+    isVerified: {
+        type: Boolean,
+        default: false
     },
 }, { timestamps: true });
 

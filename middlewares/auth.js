@@ -60,7 +60,7 @@ const isAdmin = (req, res, next) => {
         }
 
         try {
-            const user = await User.findOne({ _id: decoded._id });
+            const user = await User.findOne({ _id: decoded.id });
 
             if (!user) {
                 return res.status(400).send({
@@ -68,7 +68,7 @@ const isAdmin = (req, res, next) => {
                 });
             }
 
-            if (user.userType !== "Admin") {
+            if (user.userType !== "ADMIN") {
                 return res.status(403).send({
                     message: "Access prohibited. Admin role is required!",
                 });

@@ -9,8 +9,10 @@ cloudinary.config({ cloud_name: authConfig.cloud_name, api_key: authConfig.api_k
 
 const storage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/profileImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF"], }, });
 const profileImage = multer({ storage: storage });
+const storage1 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/uploadIdFrontImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
+const uploadIdFrontImage = multer({ storage: storage1 });
 
 
 
 
-module.exports = { profileImage, }
+module.exports = { profileImage, uploadIdFrontImage }

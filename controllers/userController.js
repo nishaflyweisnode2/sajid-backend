@@ -141,4 +141,160 @@ exports.registration = async (req, res) => {
     }
 };
 
+exports.uploadIdPicture = async (req, res) => {
+    try {
+        const userId = req.user._id;
 
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $set: { 'uploadId.frontImage': req.file.path } },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Uploaded successfully', data: updatedUser.uploadId.frontImage });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to upload profile picture', error: error.message });
+    }
+};
+
+exports.updateDocuments = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const { uploadId, drivingLicense } = req.body;
+
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: userId },
+            {
+                $set: {
+                    'uploadId.frontImage': uploadId.frontImage || null,
+                    'uploadId.backImage': uploadId.backImage || null,
+                    'drivingLicense.frontImage': drivingLicense.frontImage || null,
+                    'drivingLicense.backImage': drivingLicense.backImage || null,
+                },
+            },
+            { new: true }
+        );
+
+        if (updatedUser) {
+            return res.status(200).json({ status: 200, message: 'Documents updated successfully', data: updatedUser });
+        } else {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.uploadProfilePicture = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(userId, { image: req.file.path, }, { new: true });
+
+        if (!updatedUser) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Profile Picture Uploaded successfully', data: updatedUser });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to upload profile picture', error: error.message });
+    }
+};
+
+exports.editProfile = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const { firstName, lastName, email, mobileNumber } = req.body;
+
+        const updateObject = {};
+        if (firstName) updateObject.firstName = firstName;
+        if (lastName) updateObject.lastName = lastName;
+        if (email) updateObject.email = email;
+        if (mobileNumber) updateObject.mobileNumber = mobileNumber;
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $set: updateObject },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Edit Profile updated successfully', data: updatedUser });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getUserProfile = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const memberSince = user.createdAt.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'numeric',
+            year: 'numeric',
+        });
+
+        return res.status(200).json({
+            status: 200,
+            data: {
+                user,
+                memberSince,
+            },
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getUserProfileById = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const memberSince = user.createdAt.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'numeric',
+            year: 'numeric',
+        });
+
+        return res.status(200).json({
+            status: 200, data: {
+                user,
+                memberSince,
+            },
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
