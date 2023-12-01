@@ -3,6 +3,7 @@ const authConfig = require("../configs/auth.config");
 const jwt = require("jsonwebtoken");
 const newOTP = require("otp-generators");
 const bcrypt = require("bcryptjs");
+const City = require('../models/cityModel');
 
 
 
@@ -43,10 +44,9 @@ exports.signin = async (req, res) => {
             expiresIn: authConfig.accessTokenTime,
         });
         let obj = {
-            fullName: user.fullName,
-            firstName: user.fullName,
+            firstName: user.firstName,
             lastName: user.lastName,
-            phone: user.phone,
+            mobileNumber: user.mobileNumber,
             email: user.email,
             userType: user.userType,
         }
@@ -81,9 +81,142 @@ exports.update = async (req, res) => {
     }
 };
 
+exports.createCity = async (req, res) => {
+    try {
+        const { name, status } = req.body;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const existingCity = await City.findOne({ name });
+
+        if (existingCity) {
+            return res.status(400).json({
+                status: 400,
+                message: 'City with the same name already exists',
+            });
+        }
+
+        const newCity = new City({ name, image: req.file.path, status });
+
+        const savedCity = await newCity.save();
+
+        res.status(201).json({
+            status: 201,
+            message: 'City created successfully',
+            data: savedCity,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.getAllCities = async (req, res) => {
+    try {
+        const cities = await City.find();
+
+        res.status(200).json({
+            status: 200,
+            message: 'Cities retrieved successfully',
+            data: cities,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.getCityById = async (req, res) => {
+    try {
+        const city = await City.findById(req.params.id);
+
+        if (!city) {
+            return res.status(404).json({ message: 'City not found' });
+        }
+
+        res.status(200).json({
+            status: 200,
+            message: 'City retrieved successfully',
+            data: city,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.updateCityById = async (req, res) => {
+    try {
+        const { name, status } = req.body;
+        const cityId = req.params.id;
+
+        const existingCity = await City.findById(cityId);
+
+        if (!existingCity) {
+            return res.status(404).json({
+                status: 404,
+                message: 'City not found',
+            });
+        }
+
+        if (name && name !== existingCity.name) {
+            const duplicateCity = await City.findOne({ name });
+
+            if (duplicateCity) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'City with the updated name already exists',
+                });
+            }
+
+            existingCity.name = name;
+        }
+
+        if (req.file) {
+            existingCity.image = req.file.path;
+        }
+
+        if (req.body.status !== undefined) {
+            existingCity.status = status;
+        }
+
+        const updatedCity = await existingCity.save();
+
+        res.status(200).json({
+            status: 200,
+            message: 'City updated successfully',
+            data: updatedCity,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.deleteCityById = async (req, res) => {
+    try {
+        const deletedCity = await City.findByIdAndDelete(req.params.id);
+
+        if (!deletedCity) {
+            return res.status(404).json({ message: 'City not found' });
+        }
+
+        res.status(200).json({
+            status: 200,
+            message: 'City deleted successfully',
+            data: deletedCity,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 exports.getAllUser = async (req, res) => {
     try {
-        const users = await User.find();
+        const users = await User.find().populate('city');
         if (!users || users.length === 0) {
             return res.status(404).json({ status: 404, message: 'Users not found' });
         }
@@ -112,7 +245,7 @@ exports.getUserById = async (req, res) => {
     try {
         const { userId } = req.params;
 
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).populate('city');
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found' });
         }
@@ -153,7 +286,6 @@ exports.deleteUser = async (req, res) => {
     }
 };
 
-
 exports.getPendingVerificationUsers = async (req, res) => {
     try {
         const pendingVerificationUsers = await User.find({ isVerified: false });
@@ -167,7 +299,6 @@ exports.getPendingVerificationUsers = async (req, res) => {
         return res.status(500).json({ status: 500, error: 'Internal Server Error' });
     }
 };
-
 
 exports.updateVerificationStatus = async (req, res) => {
     try {
@@ -207,4 +338,6 @@ exports.getVerifiedUsers = async (req, res) => {
         return res.status(500).json({ status: 500, message: 'Failed to retrieve verified users', error: error.message });
     }
 };
+
+
 

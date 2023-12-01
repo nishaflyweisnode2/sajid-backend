@@ -33,6 +33,28 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    currentLocation: {
+        type: {
+            type: String,
+            default: "Point"
+        },
+        coordinates: {
+            type: [Number],
+            default: [0, 0]
+        },
+    },
+    state: {
+        type: String
+    },
+    isState: {
+        type: String,
+        default: false
+    },
+    city: { type: mongoose.Schema.ObjectId, ref: 'City' },
+    isCity: {
+        type: String,
+        default: false
+    },
     userType: {
         type: String,
         enum: ["ADMIN", "USER", "PARTNER"],

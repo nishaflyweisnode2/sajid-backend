@@ -2,6 +2,8 @@ const User = require('../models/userModel');
 const authConfig = require("../configs/auth.config");
 const jwt = require("jsonwebtoken");
 const newOTP = require("otp-generators");
+const City = require('../models/cityModel');
+
 
 
 const reffralCode = async () => {
@@ -195,6 +197,50 @@ exports.updateDocuments = async (req, res) => {
     }
 };
 
+exports.updateLocation = async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.user._id });
+        if (!user) {
+            return res.status(404).send({ status: 404, message: "User not found" });
+        }
+
+        let updateFields = {};
+
+        if (req.body.currentLat || req.body.currentLong) {
+            const coordinates = [parseFloat(req.body.currentLat), parseFloat(req.body.currentLong)];
+            updateFields.currentLocation = { type: "Point", coordinates };
+        }
+
+        if (req.body.state) {
+            updateFields.state = req.body.state;
+            updateFields.isState = true;
+        }
+
+        if (req.body.city) {
+            updateFields.city = req.body.city;
+            updateFields.isCity = true;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            { _id: user._id },
+            { $set: updateFields },
+            { new: true }
+        );
+
+        if (updatedUser) {
+            let obj = {
+                currentLocation: updatedUser.currentLocation,
+                state: updatedUser.state,
+                city: updatedUser.city,
+            };
+            return res.status(200).send({ status: 200, message: "Location update successful.", data: obj });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).send({ status: 500, message: "Server error" + error.message });
+    }
+};
+
 exports.uploadProfilePicture = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -248,7 +294,7 @@ exports.getUserProfile = async (req, res) => {
     try {
         const userId = req.user._id;
 
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).populate('city');
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found' });
         }
@@ -296,5 +342,39 @@ exports.getUserProfileById = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getAllCities = async (req, res) => {
+    try {
+        const cities = await City.find();
+
+        res.status(200).json({
+            status: 200,
+            message: 'Cities retrieved successfully',
+            data: cities,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.getCityById = async (req, res) => {
+    try {
+        const city = await City.findById(req.params.id);
+
+        if (!city) {
+            return res.status(404).json({ message: 'City not found' });
+        }
+
+        res.status(200).json({
+            status: 200,
+            message: 'City retrieved successfully',
+            data: city,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
     }
 };

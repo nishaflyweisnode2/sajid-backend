@@ -85,9 +85,54 @@ const isAdmin = (req, res, next) => {
 };
 
 
+const isPartner = (req, res, next) => {
+    const token =
+        req.headers["x-access-token"] ||
+        req.get("Authorization")?.split("Bearer ")[1];
+
+    if (!token) {
+        return res.status(403).send({
+            message: "No token provided! Access prohibited",
+        });
+    }
+
+    jwt.verify(token, authConfig.secret, async (err, decoded) => {
+        if (err) {
+            return res.status(401).send({
+                message: "Unauthorized! Partner role is required!",
+            });
+        }
+
+        try {
+            const user = await User.findOne({ _id: decoded.id });
+
+            if (!user) {
+                return res.status(400).send({
+                    message: "The user that this token belongs to does not exist",
+                });
+            }
+
+            if (user.userType !== "PARTNER") {
+                return res.status(403).send({
+                    message: "Access prohibited. Partner role is required!",
+                });
+            }
+
+            req.user = user;
+            next();
+        } catch (error) {
+            return res.status(500).json({
+                message: "Internal server error",
+            });
+        }
+    });
+};
+
+
 
 
 module.exports = {
     verifyToken,
     isAdmin,
+    isPartner
 };

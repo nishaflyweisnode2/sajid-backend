@@ -20,6 +20,7 @@ app.get("/", (req, res) => {
 
 require('./routes/userRoute')(app);
 require('./routes/adminRoute')(app);
+require('./routes/partnerRoute')(app);
 // require('./routes/categoryRoute')(app);
 // require('./routes/productRoute')(app);
 // require('./routes/subCategoryRoute')(app);
