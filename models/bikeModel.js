@@ -57,7 +57,13 @@ const bikeSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        depositMoney: {
+            type: Number,
+        },
         rentalPrice: {
+            type: Number,
+        },
+        rentalExtendedPrice: {
             type: Number,
         },
         rentalStart: {

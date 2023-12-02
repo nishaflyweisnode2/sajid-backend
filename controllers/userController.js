@@ -3,6 +3,9 @@ const authConfig = require("../configs/auth.config");
 const jwt = require("jsonwebtoken");
 const newOTP = require("otp-generators");
 const City = require('../models/cityModel');
+const Bike = require('../models/bikeModel');
+const Location = require("../models/locationModel");
+const Booking = require('../models/bookingModel');
 
 
 
@@ -376,5 +379,87 @@ exports.getCityById = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.getAllBikes = async (req, res) => {
+    try {
+        const bikes = await Bike.find();
+
+        return res.status(200).json({ status: 200, data: bikes });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getBikeById = async (req, res) => {
+    try {
+        const bikeId = req.params.id;
+        const bike = await Bike.findById(bikeId);
+
+        if (!bike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found' });
+        }
+
+        return res.status(200).json({ status: 200, data: bike });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.createBooking = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { bikeId, pickupLocationId, dropOffLocationId, pickupDate, dropOffDate, pickupTime, dropOffTime, totalPrice, status } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bikeExist = await Bike.findById(bikeId);
+        if (!bikeExist) {
+            return res.status(400).json({ status: 400, message: 'Bike not available', data: null });
+        }
+
+        const newBooking = await Booking.create({
+            user: user._id,
+            bike: bikeExist._id,
+            pickupLocation: pickupLocationId,
+            dropOffLocation: dropOffLocationId,
+            pickupDate,
+            dropOffDate,
+            pickupTime,
+            dropOffTime,
+            status,
+            totalPrice,
+        });
+
+        return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBookingsByUser = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const bookings = await Booking.find({ user: userId })
+            .populate('bike', 'brand model')
+            .populate('pickupLocation', 'name coordinates')
+            .populate('dropOffLocation', 'name coordinates');
+
+        if (!bookings || bookings.length === 0) {
+            return res.status(404).json({ status: 404, message: 'No bookings found for the user' });
+        }
+
+        return res.status(200).json({ status: 200, data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Failed to retrieve bookings for the user', error: error.message });
     }
 };

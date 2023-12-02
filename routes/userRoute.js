@@ -26,8 +26,9 @@ module.exports = (app) => {
     app.get("/api/v1/user/profile/:userId", [authJwt.verifyToken], auth.getUserProfileById);
     app.get("/api/v1/user/city/cities", [authJwt.verifyToken], auth.getAllCities);
     app.get("/api/v1/user/city/cities/:id", [authJwt.verifyToken], auth.getCityById);
-
-
+    app.get('/api/v1/user/bikes', [authJwt.verifyToken], auth.getAllBikes);
+    app.get('/api/v1/user/bikes/:id', [authJwt.verifyToken], auth.getBikeById);
+    app.post("/api/v1/user/booking/create", [authJwt.verifyToken], auth.createBooking);
 
 
 

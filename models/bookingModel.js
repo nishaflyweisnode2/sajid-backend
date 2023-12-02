@@ -5,44 +5,74 @@ const bookingSchema = new mongoose.Schema(
         bike: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Bike',
-            required: true,
         },
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
-            required: true,
         },
         pickupLocation: {
-            type: String,
-            required: true,
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Location',
         },
         dropOffLocation: {
-            type: String,
-            required: true,
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Location',
+        },
+        pickupDate: {
+            type: Date,
+        },
+        dropOffDate: {
+            type: Date,
         },
         pickupTime: {
-            type: Date,
-            required: true,
+            type: String,
         },
         dropOffTime: {
-            type: Date,
-            required: true,
+            type: String,
         },
         status: {
             type: String,
             enum: ['PENDING', 'APPROVED', 'CANCELLED', 'COMPLETED'],
             default: 'PENDING',
-            required: true,
+        },
+        depositedMoney: {
+            type: Number,
         },
         totalPrice: {
             type: Number,
-            required: true,
         },
         paymentStatus: {
             type: String,
-            enum: ['PENDING', 'PAID'],
+            enum: ['PENDING', 'FAILED', 'PAID'],
             default: 'PENDING',
-            required: true,
+        },
+        isTimeExtended: {
+            type: Boolean,
+            default: false,
+        },
+        extendedDropOffDate: {
+            type: String,
+            default: null,
+        },
+        extendedDropOffTime: {
+            type: String,
+            default: null,
+        },
+        offerCode: {
+            type: String,
+        },
+        discountPrice: {
+            type: Number,
+        },
+        tripStartTime: {
+            type: Date,
+        },
+        tripEndTime: {
+            type: Date,
+        },
+        isTripCompleted: {
+            type: Boolean,
+            default: false,
         },
     },
     { timestamps: true }

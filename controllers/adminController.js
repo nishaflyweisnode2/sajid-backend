@@ -4,6 +4,10 @@ const jwt = require("jsonwebtoken");
 const newOTP = require("otp-generators");
 const bcrypt = require("bcryptjs");
 const City = require('../models/cityModel');
+const Bike = require('../models/bikeModel');
+const Location = require("../models/locationModel");
+const Coupon = require('../models/couponModel');
+
 
 
 
@@ -338,6 +342,432 @@ exports.getVerifiedUsers = async (req, res) => {
         return res.status(500).json({ status: 500, message: 'Failed to retrieve verified users', error: error.message });
     }
 };
+
+exports.createLocation = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const { name, coordinates, type, address } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const pickupLocation = new Location({
+            user: user.id,
+            name,
+            coordinates,
+            type: 'pickup',
+            address,
+        });
+
+        const savedPickupLocation = await pickupLocation.save();
+
+        const dropLocation = new Location({
+            user: user.id,
+            name: savedPickupLocation.name,
+            coordinates: savedPickupLocation.coordinates,
+            type: 'drop',
+            address: savedPickupLocation.address,
+        });
+
+        const savedDropLocation = await dropLocation.save();
+
+        res.status(201).json({
+            status: 201,
+            message: 'Pickup and drop locations created successfully',
+            data: { pickupLocation: savedPickupLocation, dropLocation: savedDropLocation },
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getAllLocations = async (req, res) => {
+    try {
+        const locations = await Location.find();
+        res.status(200).json({ status: 200, data: locations });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getLocationById = async (req, res) => {
+    try {
+        const locationId = req.params.id;
+        const location = await Location.findById(locationId);
+
+        if (!location) {
+            return res.status(404).json({ status: 404, message: 'Location not found' });
+        }
+
+        res.status(200).json({ status: 200, data: location });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.updateLocationById = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const locationId = req.params.id;
+        const updateFields = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const existingLocation = await Location.findById(locationId);
+
+        if (!existingLocation) {
+            return res.status(404).json({ status: 404, message: 'Location not found' });
+        }
+
+        if (existingLocation.user.toString() !== userId.toString()) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized: User does not have permission to update this location' });
+        }
+
+        const updatedLocation = await Location.findByIdAndUpdate(locationId, updateFields, { new: true });
+
+        if (existingLocation.type === 'pickup') {
+            const dropLocation = await Location.findOneAndUpdate(
+                { name: existingLocation.name, type: 'drop', user: userId },
+                updateFields,
+                { new: true }
+            );
+
+            res.status(200).json({
+                status: 200,
+                message: 'Locations updated successfully',
+                data: { pickupLocation: updatedLocation, dropLocation },
+            });
+        } else {
+            res.status(200).json({ status: 200, message: 'Location updated successfully', data: updatedLocation });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.deleteLocationById = async (req, res) => {
+    try {
+        const locationId = req.params.id;
+        const deletedLocation = await Location.findByIdAndDelete(locationId);
+
+        if (!deletedLocation) {
+            return res.status(404).json({ status: 404, message: 'Location not found' });
+        }
+
+        if (deletedLocation.type === 'pickup') {
+            const dropLocation = await Location.findOne({
+                name: deletedLocation.name,
+                type: 'drop',
+                coordinates: deletedLocation.coordinates,
+                address: deletedLocation.address,
+            });
+
+            if (dropLocation) {
+                await Location.findByIdAndDelete(dropLocation._id);
+            }
+        }
+
+        res.status(200).json({ status: 200, message: 'Location deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getLocationsByType = async (req, res) => {
+    try {
+        const { type } = req.params;
+
+        const locations = await Location.find({ type: type });
+        console.log(locations);
+
+        if (locations && locations.length > 0) {
+            return res.json(locations);
+        } else {
+            return res.status(404).json({ message: `No locations found for type: ${type}` });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: `Failed to retrieve locations for type: ${type}` });
+    }
+};
+
+exports.createBike = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, rentalPrice, pickup, rentalExtendedPrice, depositMoney } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const pickupLocation = await Location.findById(pickup);
+        if (!pickupLocation) {
+            return res.status(404).json({ status: 404, message: 'Pickup location not found' });
+        }
+
+        if (pickupLocation.user.toString() !== userId.toString()) {
+            return res.status(403).json({ status: 403, message: 'You do not have permission to use the specified pickup location' });
+        }
+
+        const dropLocation = await Location.findOne({
+            user: userId,
+            name: pickupLocation.name,
+            coordinates: pickupLocation.coordinates,
+            type: 'drop',
+            address: pickupLocation.address,
+        });
+
+        if (!dropLocation || dropLocation.user.toString() !== userId.toString()) {
+            return res.status(403).json({ status: 403, message: 'You do not have permission to use the specified drop location' });
+        }
+
+        let images = [];
+        if (req.files) {
+            for (let j = 0; j < req.files.length; j++) {
+                let obj = {
+                    img: req.files[j].path,
+                };
+                images.push(obj);
+            }
+        }
+
+        const newBike = await Bike.create({
+            owner: userId,
+            brand,
+            model,
+            type,
+            color,
+            engineHP,
+            mileage,
+            speedLimit,
+            isPremium,
+            isAvailable,
+            numberOfSeats,
+            aboutBike,
+            rentalPrice,
+            images,
+            pickup,
+            drop: dropLocation._id,
+            depositMoney,
+            rentalExtendedPrice,
+        });
+
+        return res.status(201).json({ status: 201, message: 'Bike created successfully', data: newBike });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getAllBikes = async (req, res) => {
+    try {
+        const bikes = await Bike.find();
+
+        return res.status(200).json({ status: 200, data: bikes });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getBikeById = async (req, res) => {
+    try {
+        const bikeId = req.params.id;
+        const bike = await Bike.findById(bikeId);
+
+        if (!bike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found' });
+        }
+
+        return res.status(200).json({ status: 200, data: bike });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.updateBikeById = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const bikeId = req.params.id;
+        const updateFields = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        let images = [];
+        if (req.files && req.files.length > 0) {
+            for (let j = 0; j < req.files.length; j++) {
+                let obj = {
+                    img: req.files[j].path,
+                };
+                images.push(obj);
+            }
+        }
+
+        const { pickup } = updateFields;
+
+        const pickupLocation = await Location.findById(pickup);
+        if (!pickupLocation) {
+            return res.status(404).json({ status: 404, message: 'Pickup location not found' });
+        }
+
+        if (pickupLocation.user.toString() !== userId.toString()) {
+            return res.status(403).json({ status: 403, message: 'You do not have permission to use the specified pickup location' });
+        }
+
+        const dropLocation = await Location.findOne({
+            user: userId,
+            name: pickupLocation.name,
+            coordinates: pickupLocation.coordinates,
+            type: 'drop',
+            address: pickupLocation.address,
+        });
+
+        if (!dropLocation || dropLocation.user.toString() !== userId.toString()) {
+            return res.status(403).json({ status: 403, message: 'You do not have permission to use the specified drop location' });
+        }
+
+
+        const updatedBikeFields = {
+            ...updateFields,
+            owner: user.id,
+        };
+
+        if (images.length > 0) {
+            updatedBikeFields.images = images;
+        }
+
+        if (dropLocation) {
+            updatedBikeFields.pickup = pickupLocation;
+            updatedBikeFields.drop = dropLocation;
+        }
+
+        const updatedBike = await Bike.findByIdAndUpdate(bikeId, updatedBikeFields, { new: true });
+
+        if (!updatedBike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Bike updated successfully', data: updatedBike });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.deleteBikeById = async (req, res) => {
+    try {
+        const bikeId = req.params.id;
+
+        const deletedBike = await Bike.findByIdAndDelete(bikeId);
+
+        if (!deletedBike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Bike deleted successfully', data: deletedBike });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.createCoupon = async (req, res) => {
+    try {
+        const { title, desc, code, discount, isPercent, expirationDate, isActive } = req.body;
+
+        const newCoupon = await Coupon.create({
+            title,
+            desc,
+            code,
+            discount,
+            isPercent,
+            expirationDate,
+            isActive,
+        });
+
+        res.status(201).json({ status: 201, message: 'Coupon created successfully', data: newCoupon });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getAllCoupons = async (req, res) => {
+    try {
+        const coupons = await Coupon.find();
+        res.status(200).json({ status: 200, data: coupons });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getCouponById = async (req, res) => {
+    try {
+        const couponId = req.params.id;
+        const coupon = await Coupon.findById(couponId);
+
+        if (!coupon) {
+            return res.status(404).json({ status: 404, message: 'Coupon not found' });
+        }
+
+        res.status(200).json({ status: 200, data: coupon });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.updateCouponById = async (req, res) => {
+    try {
+        const couponId = req.params.id;
+        const updateFields = req.body;
+
+        const updatedCoupon = await Coupon.findByIdAndUpdate(couponId, updateFields, { new: true });
+
+        if (!updatedCoupon) {
+            return res.status(404).json({ status: 404, message: 'Coupon not found' });
+        }
+
+        res.status(200).json({ status: 200, message: 'Coupon updated successfully', data: updatedCoupon });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.deleteCouponById = async (req, res) => {
+    try {
+        const couponId = req.params.id;
+        const deletedCoupon = await Coupon.findByIdAndDelete(couponId);
+
+        if (!deletedCoupon) {
+            return res.status(404).json({ status: 404, message: 'Coupon not found' });
+        }
+
+        res.status(200).json({ status: 200, message: 'Coupon deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
 
 
 

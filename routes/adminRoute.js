@@ -5,7 +5,7 @@ const router = express()
 
 const authJwt = require("../middlewares/auth");
 
-const { profileImage, cityImage } = require('../middlewares/imageUpload');
+const { profileImage, cityImage, bikeImage } = require('../middlewares/imageUpload');
 
 
 
@@ -27,7 +27,22 @@ module.exports = (app) => {
     app.get('/api/v1/admin/users/pending-verification', [authJwt.isAdmin], auth.getPendingVerificationUsers);
     app.put('/api/v1/admin/users/:id/update-verification-status', [authJwt.isAdmin], auth.updateVerificationStatus);
     app.get('/api/v1/admin/verified-users', [authJwt.isAdmin], auth.getVerifiedUsers);
-
+    app.post('/api/v1/admin/locations/create', [authJwt.isAdmin], auth.createLocation);
+    app.get('/api/v1/admin/locations/getAll', [authJwt.isAdmin], auth.getAllLocations);
+    app.get('/api/v1/admin/locations/:id', [authJwt.isAdmin], auth.getLocationById);
+    app.put('/api/v1/admin/locations/:id', [authJwt.isAdmin], auth.updateLocationById);
+    app.delete('/api/v1/admin/locations/:id', [authJwt.isAdmin], auth.deleteLocationById);
+    app.get('/api/v1/admin/locations/type/:type', [authJwt.isAdmin], auth.getLocationsByType);
+    app.post('/api/v1/admin/bikes', [authJwt.isAdmin], bikeImage.array('image'), auth.createBike);
+    app.get('/api/v1/admin/bikes', [authJwt.isAdmin], auth.getAllBikes);
+    app.get('/api/v1/admin/bikes/:id', [authJwt.isAdmin], auth.getBikeById);
+    app.put('/api/v1/admin/bikes/:id', [authJwt.isAdmin], bikeImage.array('image'), auth.updateBikeById);
+    app.delete('/api/v1/admin/bikes/:id', [authJwt.isAdmin], auth.deleteBikeById);
+    app.post('/api/v1/admin/coupons', [authJwt.isAdmin], auth.createCoupon);
+    app.get('/api/v1/admin/coupons', [authJwt.isAdmin], auth.getAllCoupons);
+    app.get('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.getCouponById);
+    app.put('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.updateCouponById);
+    app.delete('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.deleteCouponById);
 
 
 
