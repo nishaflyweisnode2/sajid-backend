@@ -6,6 +6,7 @@ const City = require('../models/cityModel');
 const Bike = require('../models/bikeModel');
 const Location = require("../models/locationModel");
 const Booking = require('../models/bookingModel');
+const Coupon = require('../models/couponModel');
 
 
 
@@ -409,10 +410,36 @@ exports.getBikeById = async (req, res) => {
     }
 };
 
-exports.createBooking = async (req, res) => {
+exports.getAllCoupons = async (req, res) => {
+    try {
+        const coupons = await Coupon.find();
+        res.status(200).json({ status: 200, data: coupons });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getCouponById = async (req, res) => {
+    try {
+        const couponId = req.params.id;
+        const coupon = await Coupon.findById(couponId);
+
+        if (!coupon) {
+            return res.status(404).json({ status: 404, message: 'Coupon not found' });
+        }
+
+        res.status(200).json({ status: 200, data: coupon });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.createBooking1 = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { bikeId, pickupLocationId, dropOffLocationId, pickupDate, dropOffDate, pickupTime, dropOffTime, totalPrice, status } = req.body;
+        const { bikeId, pickupLocationId, dropOffLocationId, pickupDate, dropOffDate, pickupTime, dropOffTime, totalPrice, status, offerCode } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -435,6 +462,8 @@ exports.createBooking = async (req, res) => {
             dropOffTime,
             status,
             totalPrice,
+            discountPrice,
+            offerCode
         });
 
         return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
@@ -444,22 +473,216 @@ exports.createBooking = async (req, res) => {
     }
 };
 
-exports.getBookingsByUser = async (req, res) => {
+exports.checkBikeAvailability = async (req, res) => {
     try {
-        const userId = req.params.userId;
+        const { pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
 
-        const bookings = await Booking.find({ user: userId })
-            .populate('bike', 'brand model')
-            .populate('pickupLocation', 'name coordinates')
-            .populate('dropOffLocation', 'name coordinates');
+        const startDateTime = new Date(`${pickupDate}T${pickupTime}`);
+        const endDateTime = new Date(`${dropOffDate}T${dropOffTime}`);
 
-        if (!bookings || bookings.length === 0) {
-            return res.status(404).json({ status: 404, message: 'No bookings found for the user' });
-        }
+        const bookedBikes = await Booking.find({
+            $and: [
+                {
+                    $or: [
+                        {
+                            $and: [
+                                { 'pickupTime': { $lte: endDateTime } },
+                                { 'dropOffTime': { $gte: startDateTime } },
+                            ],
+                        },
+                        {
+                            $and: [
+                                { 'pickupTime': { $gte: startDateTime } },
+                                { 'dropOffTime': { $lte: endDateTime } },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    $or: [
+                        { 'status': 'APPROVED', 'isTripCompleted': false },
+                        {
+                            'isTimeExtended': true,
+                            'timeExtendedDropOffTime': { $gte: startDateTime, $lte: endDateTime },
+                        },
+                    ],
+                },
+            ],
+        });
 
-        return res.status(200).json({ status: 200, data: bookings });
+        const bookedBikeIds = bookedBikes.map(booking => booking.bike);
+
+        const availableBikes = await Bike.find({
+            _id: { $nin: bookedBikeIds },
+            isOnTrip: false,
+            isAvailable: true,
+            nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+        });
+
+        return res.status(200).json({ status: 200, data: availableBikes });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ status: 500, message: 'Failed to retrieve bookings for the user', error: error.message });
+        return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability' });
     }
 };
+
+exports.createBooking = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, status } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bikeExist = await Bike.findById(bikeId);
+        if (!bikeExist) {
+            return res.status(400).json({ status: 400, message: 'Bike not available', data: null });
+        }
+
+        const rentalPrice = bikeExist.rentalPrice;
+        console.log("rentalPrice", rentalPrice);
+
+        const durationInDays = calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime);
+        console.log("durationInDays", durationInDays);
+
+        const totalPrice = rentalPrice * durationInDays;
+        console.log("totalPrice", totalPrice);
+
+        if (isNaN(totalPrice) || totalPrice < 0) {
+            return res.status(400).json({ status: 400, message: 'Invalid totalPrice', data: null });
+        }
+
+        const newBooking = await Booking.create({
+            user: user._id,
+            bike: bikeExist._id,
+            pickupLocation: bikeExist.pickup,
+            dropOffLocation: bikeExist.drop,
+            pickupDate,
+            dropOffDate,
+            pickupTime,
+            dropOffTime,
+            status: PENDING,
+            totalPrice,
+        });
+
+        return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+function calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime) {
+    const pickupDateTime = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
+    console.log("pickupDateTime", pickupDateTime);
+
+    const dropOffDateTime = new Date(`${dropOffDate}T${dropOffTime}:00.000Z`);
+    console.log("dropOffDateTime", dropOffDateTime);
+
+    const durationInMilliseconds = dropOffDateTime - pickupDateTime;
+    console.log("durationInMilliseconds", durationInMilliseconds);
+
+    const durationInDays = durationInMilliseconds / (1000 * 60 * 60 * 24);
+    console.log("durationInDays", durationInDays);
+
+    return durationInDays;
+}
+
+exports.getBookingsByUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const bookings = await Booking.find({ user: userId }).populate('bike user pickupLocation dropOffLocation');
+
+        // .populate({
+        //     path: 'bike',
+        //     select: 'modelName rentalPrice',
+        // })
+        // .populate({
+        //     path: 'user',
+        //     select: 'username email',
+        // })
+        // .populate({
+        //     path: 'pickupLocation dropOffLocation',
+        //     select: 'locationName address',
+        // });
+
+        return res.status(200).json({ status: 200, message: 'Bookings retrieved successfully', data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateBookingById = async (req, res) => {
+    try {
+        const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+        return res.status(200).json({ status: 200, message: 'Booking updated successfully', data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.applyCouponToBooking = async (req, res) => {
+    try {
+        const { bookingId, couponCode } = req.body;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        if (booking.isCouponApplied) {
+            return res.status(400).json({ status: 400, message: 'Coupon has already been applied to this booking', data: null });
+        }
+
+        const coupon = await Coupon.findOne({ code: couponCode });
+        if (!coupon || !coupon.isActive || new Date(coupon.expirationDate) < new Date()) {
+            return res.status(400).json({ status: 400, message: 'Invalid or expired coupon code', data: null });
+        }
+
+        booking.offerCode = couponCode;
+        booking.discountPrice = booking.totalPrice * (coupon.discount / 100);
+        booking.totalPrice -= booking.discountPrice;
+        booking.isCouponApplied = true;
+
+        await booking.save();
+
+        return res.status(200).json({ status: 200, message: 'Coupon applied successfully', data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.removeCouponFromBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.body;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        booking.totalPrice = booking.totalPrice + booking.discountPrice;
+
+        booking.offerCode = null;
+        booking.discountPrice = 0;
+
+        booking.isCouponApplied = false;
+
+        await booking.save();
+
+        return res.status(200).json({ status: 200, message: 'Coupon removed successfully', data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+

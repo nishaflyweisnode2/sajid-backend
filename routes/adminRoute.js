@@ -43,6 +43,9 @@ module.exports = (app) => {
     app.get('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.getCouponById);
     app.put('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.updateCouponById);
     app.delete('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.deleteCouponById);
+    app.get('/api/v1/admin/bookings', [authJwt.isAdmin], auth.getAllBookings);
+    app.get('/api/v1/admin/bookings/:id', [authJwt.isAdmin], auth.getBookingById);
+
 
 
 

@@ -7,7 +7,7 @@ const City = require('../models/cityModel');
 const Bike = require('../models/bikeModel');
 const Location = require("../models/locationModel");
 const Coupon = require('../models/couponModel');
-
+const Booking = require('../models/bookingModel');
 
 
 
@@ -768,6 +768,29 @@ exports.deleteCouponById = async (req, res) => {
     }
 };
 
+exports.getAllBookings = async (req, res) => {
+    try {
+        const bookings = await Booking.find().populate('bike user pickupLocation dropOffLocation');
+
+        return res.status(200).json({ status: 200, data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBookingById = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id).populate('bike user pickupLocation dropOffLocation');
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+        return res.status(200).json({ status: 200, data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
 
 
 

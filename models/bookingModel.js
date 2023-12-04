@@ -64,6 +64,10 @@ const bookingSchema = new mongoose.Schema(
         discountPrice: {
             type: Number,
         },
+        isCouponApplied: {
+            type: Boolean,
+            default: false
+        },
         tripStartTime: {
             type: Date,
         },
