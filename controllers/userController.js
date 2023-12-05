@@ -436,43 +436,6 @@ exports.getCouponById = async (req, res) => {
     }
 };
 
-exports.createBooking1 = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const { bikeId, pickupLocationId, dropOffLocationId, pickupDate, dropOffDate, pickupTime, dropOffTime, totalPrice, status, offerCode } = req.body;
-
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ status: 404, message: 'User not found', data: null });
-        }
-
-        const bikeExist = await Bike.findById(bikeId);
-        if (!bikeExist) {
-            return res.status(400).json({ status: 400, message: 'Bike not available', data: null });
-        }
-
-        const newBooking = await Booking.create({
-            user: user._id,
-            bike: bikeExist._id,
-            pickupLocation: pickupLocationId,
-            dropOffLocation: dropOffLocationId,
-            pickupDate,
-            dropOffDate,
-            pickupTime,
-            dropOffTime,
-            status,
-            totalPrice,
-            discountPrice,
-            offerCode
-        });
-
-        return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ status: 500, message: 'Server error', data: null });
-    }
-};
-
 exports.checkBikeAvailability = async (req, res) => {
     try {
         const { pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
@@ -529,7 +492,35 @@ exports.checkBikeAvailability = async (req, res) => {
 exports.createBooking = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, status } = req.body;
+        const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime } = req.body;
+
+        const currentDate = new Date();
+        const requestedPickupDate = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
+
+        if (requestedPickupDate < currentDate) {
+            return res.status(400).json({ status: 400, message: 'Invalid pickup date. Pickup date cannot be earlier than the current date.', data: null });
+        }
+
+        const existingBooking = await Booking.findOne({ bike: bikeId, pickupDate, pickupTime, dropOffDate, dropOffTime, isTripCompleted: false, });
+
+        if (existingBooking) {
+            return res.status(400).json({
+                status: 400, message: 'Bike is already booked for the specified pickup date and time.', data: null,
+            });
+        }
+
+        const existingExtendedBooking = await Booking.findOne({
+            bike: bikeId,
+            extendedDropOffDate: pickupDate || extendedDropOffDate,
+            extendedDropOffTime: pickupTime || extendedDropOffTime,
+            isTripCompleted: false,
+        });
+
+        if (existingExtendedBooking) {
+            return res.status(400).json({
+                status: 400, message: 'Bike is already booked for the specified extended drop-off date and time.', data: null,
+            });
+        }
 
         const user = await User.findById(userId);
         if (!user) {
@@ -547,12 +538,19 @@ exports.createBooking = async (req, res) => {
         const durationInDays = calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime);
         console.log("durationInDays", durationInDays);
 
-        const totalPrice = rentalPrice * durationInDays;
+        const basePrice = rentalPrice * durationInDays;
+        const taxAmount = (3 / 100) * basePrice;
+        const totalPrice = basePrice + taxAmount;
+
         console.log("totalPrice", totalPrice);
 
         if (isNaN(totalPrice) || totalPrice < 0) {
             return res.status(400).json({ status: 400, message: 'Invalid totalPrice', data: null });
         }
+
+        const roundedBasePrice = Math.round(basePrice);
+        const roundedTaxAmount = Math.round(taxAmount);
+        const roundedTotalPrice = Math.round(totalPrice);
 
         const newBooking = await Booking.create({
             user: user._id,
@@ -563,8 +561,11 @@ exports.createBooking = async (req, res) => {
             dropOffDate,
             pickupTime,
             dropOffTime,
-            status: PENDING,
-            totalPrice,
+            status: "PENDING",
+            price: roundedBasePrice,
+            taxAmount: roundedTaxAmount,
+            totalPrice: roundedTotalPrice,
+            depositedMoney: bikeExist.depositMoney,
         });
 
         return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
@@ -648,8 +649,8 @@ exports.applyCouponToBooking = async (req, res) => {
         }
 
         booking.offerCode = couponCode;
-        booking.discountPrice = booking.totalPrice * (coupon.discount / 100);
-        booking.totalPrice -= booking.discountPrice;
+        booking.discountPrice = Math.round(booking.totalPrice * (coupon.discount / 100));
+        booking.totalPrice = Math.round(booking.totalPrice - booking.discountPrice);
         booking.isCouponApplied = true;
 
         await booking.save();
@@ -670,7 +671,7 @@ exports.removeCouponFromBooking = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
         }
 
-        booking.totalPrice = booking.totalPrice + booking.discountPrice;
+        booking.totalPrice = Math.round(booking.totalPrice + booking.discountPrice);
 
         booking.offerCode = null;
         booking.discountPrice = 0;
@@ -685,4 +686,97 @@ exports.removeCouponFromBooking = async (req, res) => {
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
+
+exports.updatePaymentStatus = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId
+        const { paymentStatus } = req.body;
+
+        const updatedBooking = await Booking.findOne({ _id: bookingId });
+
+        const validStatusValues = ['PENDING', 'FAILED', 'PAID'];
+        if (!validStatusValues.includes(paymentStatus)) {
+            return res.status(400).json({ error: "Invalid Payment status value" });
+        }
+
+        updatedBooking.paymentStatus = paymentStatus
+        await updatedBooking.save()
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Payment status updated successfully',
+            data: updatedBooking,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error while updating payment status',
+            data: null,
+        });
+    }
+};
+
+const isBikeAvailableForPeriod = async (bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, extendedDropOffDate, extendedDropOffTime) => {
+    const startTime = new Date(`${pickupDate}T${pickupTime}`);
+    const endTime = new Date(`${dropOffDate}T${dropOffTime}`);
+    const extendTime = new Date(`${extendedDropOffDate}T${extendedDropOffTime}`);
+
+    const existingBookings = await Booking.find({
+        bike: bikeId,
+        isTripCompleted: false,
+        $or: [
+            { pickupTime: { $lt: endTime }, dropOffTime: { $gt: startTime } },
+            { pickupTime: { $lt: startTime }, dropOffTime: { $gt: startTime } },
+            { $and: [{ extendedDropOffTime: { $lt: extendTime } }, { dropOffTime: { $gt: extendTime } }] },
+        ],
+    });
+
+    return existingBookings.length === 0;
+};
+
+exports.extendBooking = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId;
+        const { extendedDropOffDate, extendedDropOffTime } = req.body;
+
+        const extendedBooking = await Booking.findById(bookingId);
+        if (!extendedBooking) {
+            return res.status(404).send("Booking not found");
+        }
+
+        const isAvailable = await isBikeAvailableForPeriod(
+            extendedBooking.bike,
+            extendedBooking.pickupDate,
+            extendedBooking.dropOffDate,
+            extendedBooking.pickupTime,
+            extendedBooking.dropOffTime
+        );
+
+        if (!isAvailable) {
+            return res.status(400).send("Bike is not available for the extended period");
+        }
+
+        extendedBooking.isTimeExtended = true;
+        extendedBooking.extendedDropOffDate = extendedDropOffDate;
+        extendedBooking.extendedDropOffTime = extendedDropOffTime;
+
+        await extendedBooking.save();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Booking extended successfully',
+            data: extendedBooking,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error while extending booking',
+            data: null,
+        });
+    }
+};
+
+
 

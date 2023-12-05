@@ -38,6 +38,12 @@ const bookingSchema = new mongoose.Schema(
         depositedMoney: {
             type: Number,
         },
+        price: {
+            type: Number,
+        },
+        taxAmount: {
+            type: Number,
+        },
         totalPrice: {
             type: Number,
         },
@@ -51,12 +57,15 @@ const bookingSchema = new mongoose.Schema(
             default: false,
         },
         extendedDropOffDate: {
-            type: String,
+            type: Date,
             default: null,
         },
         extendedDropOffTime: {
             type: String,
             default: null,
+        },
+        extendedPrice: {
+            type: Number,
         },
         offerCode: {
             type: String,
