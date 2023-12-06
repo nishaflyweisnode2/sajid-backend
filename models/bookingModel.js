@@ -87,6 +87,12 @@ const bookingSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        tripEndKm: {
+            type: Number,
+        },
+        remarks: {
+            type: String,
+        },
     },
     { timestamps: true }
 );

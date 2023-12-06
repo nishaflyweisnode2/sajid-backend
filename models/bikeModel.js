@@ -31,6 +31,12 @@ const bikeSchema = new mongoose.Schema(
         color: {
             type: String,
         },
+        bikeNumber: {
+            type: String,
+        },
+        totalKm: {
+            type: Number,
+        },
         engineHP: {
             type: Number,
         },

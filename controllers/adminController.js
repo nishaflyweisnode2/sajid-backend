@@ -6,8 +6,11 @@ const bcrypt = require("bcryptjs");
 const City = require('../models/cityModel');
 const Bike = require('../models/bikeModel');
 const Location = require("../models/locationModel");
+const Store = require('../models/storeModel');
+const BikeStoreRelation = require('../models/BikeStoreRelationModel');
 const Coupon = require('../models/couponModel');
 const Booking = require('../models/bookingModel');
+
 
 
 
@@ -502,10 +505,201 @@ exports.getLocationsByType = async (req, res) => {
     }
 };
 
+exports.createStore = async (req, res) => {
+    try {
+        const { name, location, isAvailable } = req.body;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const existingLocation = await Location.findById(location);
+
+        if (!existingLocation) {
+            return res.status(404).json({ status: 404, message: 'Location not found' });
+        }
+
+        const newStore = await Store.create({
+            name,
+            image: req.file.path,
+            location,
+            isAvailable: isAvailable || true,
+        });
+
+        return res.status(201).json({ status: 201, message: 'Store created successfully', data: newStore });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllStores = async (req, res) => {
+    try {
+        const stores = await Store.find().populate('location');
+
+        return res.status(200).json({ status: 200, data: stores });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getStoreById = async (req, res) => {
+    try {
+        const storeId = req.params.storeId;
+        const store = await Store.findById(storeId).populate('location');
+
+        if (!store) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, data: store });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateStoreById = async (req, res) => {
+    try {
+        const storeId = req.params.storeId;
+        const { name, location, isAvailable } = req.body;
+
+        const store = await Store.findById(storeId);
+        if (!store) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        if (location) {
+            const existingLocation = await Location.findById(location);
+
+            if (!existingLocation) {
+                return res.status(404).json({ status: 404, message: 'Location not found' });
+            }
+        }
+
+        if (name && name !== store.name) {
+            const duplicateStore = await Store.findOne({ name });
+
+            if (duplicateStore) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Store with the updated name already exists',
+                });
+            }
+
+            store.name = name;
+        }
+
+        if (req.file) {
+            store.image = req.file.path;
+        }
+
+        store.location = location || store.location;
+        store.isAvailable = isAvailable || store.isAvailable;
+
+        const updatedStore = await store.save();
+
+        return res.status(200).json({ status: 200, message: 'Store updated successfully', data: updatedStore });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteStoreById = async (req, res) => {
+    try {
+        const storeId = req.params.storeId;
+
+        const store = await Store.findByIdAndDelete(storeId);
+        if (!store) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Store deleted successfully', data: null });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updatePartnerIdInStore = async (req, res) => {
+    try {
+        const storeId = req.params.storeId;
+        const { partnerId } = req.body;
+
+        const store = await Store.findById(storeId);
+        if (!store) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        const user = await User.findOne({ _id: partnerId, userType: "PARTNER" });
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'Partner not found' });
+        }
+
+        store.partner = partnerId;
+
+        const updatedStore = await store.save();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Partner ID updated in the store successfully',
+            data: updatedStore,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getPartnerIdByStoreId = async (req, res) => {
+    try {
+        const { storeId } = req.params;
+
+        const store = await Store.findById(storeId);
+        if (!store) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Partner ID retrieved successfully',
+            data: store,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deletePartnerIdFromStore = async (req, res) => {
+    try {
+        const { storeId } = req.params;
+
+        const store = await Store.findById(storeId);
+        if (!store) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        store.partner = null;
+        const updatedStore = await store.save();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Partner ID deleted from the store successfully',
+            data: updatedStore,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 exports.createBike = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, rentalPrice, pickup, rentalExtendedPrice, depositMoney } = req.body;
+        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, rentalPrice, pickup, rentalExtendedPrice, depositMoney, totalKm, bikeNumber } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -562,6 +756,8 @@ exports.createBike = async (req, res) => {
             drop: dropLocation._id,
             depositMoney,
             rentalExtendedPrice,
+            bikeNumber,
+            totalKm
         });
 
         return res.status(201).json({ status: 201, message: 'Bike created successfully', data: newBike });
@@ -684,6 +880,140 @@ exports.deleteBikeById = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.createBikeStoreRelation = async (req, res) => {
+    try {
+        const { bikeId, storeId } = req.body;
+
+        const bike = await Bike.findById(bikeId);
+        if (!bike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+        }
+
+        const totalNumberOfBikes = typeof bike.totalNumberOfBikes === 'number' ? bike.totalNumberOfBikes : 0;
+
+        const existingRelation = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
+        if (existingRelation) {
+            return res.status(400).json({ status: 400, message: 'Relation already exists', data: null });
+        }
+
+        const newRelation = await BikeStoreRelation.create({
+            bike: bikeId,
+            store: storeId,
+            totalNumberOfBikes: totalNumberOfBikes + 1,
+        });
+
+        return res.status(201).json({ status: 201, message: 'Bike-Store relation created successfully', data: newRelation });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllBikeStoreRelations = async (req, res) => {
+    try {
+        const relations = await BikeStoreRelation.find().populate({
+            path: 'store',
+            populate: { path: 'location' }
+        }).populate('bike');
+        return res.status(200).json({ status: 200, message: 'Bike-Store relations retrieved successfully', data: relations });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBikeStoreRelationById = async (req, res) => {
+    try {
+        const relationId = req.params.relationId;
+        const relation = await BikeStoreRelation.findById(relationId).populate({
+            path: 'store',
+            populate: { path: 'location' }
+        }).populate('bike');
+
+        if (!relation) {
+            return res.status(404).json({ status: 404, message: 'Bike-Store relation not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Bike-Store relation retrieved successfully', data: relation });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateBikeStoreRelation = async (req, res) => {
+    try {
+        const relationId = req.params.relationId;
+        const { bikeId, storeId, totalNumberOfBikes, totalNumberOfBookedBikes } = req.body;
+
+        const existingRelation = await BikeStoreRelation.findById(relationId);
+        if (!existingRelation) {
+            return res.status(404).json({ status: 404, message: 'Bike-Store relation not found', data: null });
+        }
+
+        const bike = await Bike.findById(bikeId);
+        if (!bike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+        }
+
+        // totalNumberOfBikes = typeof bike.totalNumberOfBikes === 'number' ? bike.totalNumberOfBikes : 0;
+
+        const existing = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
+        if (existing) {
+            return res.status(400).json({ status: 400, message: 'Relation already exists', data: null });
+        }
+
+        existingRelation.totalNumberOfBikes = totalNumberOfBikes;
+        existingRelation.totalNumberOfBookedBikes = totalNumberOfBookedBikes;
+
+        const updatedRelation = await existingRelation.save();
+
+        return res.status(200).json({ status: 200, message: 'Bike-Store relation updated successfully', data: updatedRelation });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteBikeStoreRelation = async (req, res) => {
+    try {
+        const relationId = req.params.relationId;
+
+        const deletedRelation = await BikeStoreRelation.findByIdAndDelete(relationId);
+        if (!deletedRelation) {
+            return res.status(404).json({ status: 404, message: 'Bike-Store relation not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Bike-Store relation deleted successfully', data: deletedRelation });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBikesByStoreAndPartner = async (req, res) => {
+    try {
+        const { storeId, partnerId } = req.params;
+
+        const relation = await BikeStoreRelation.find({ store: storeId, partner: partnerId }).populate({
+            path: 'store',
+            populate: { path: 'location' }
+        }).populate('bike');
+        if (!relation) {
+            return res.status(404).json({ status: 404, message: 'Relation not found', data: null });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bikes retrieved successfully by store and partner',
+            data: relation,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
 

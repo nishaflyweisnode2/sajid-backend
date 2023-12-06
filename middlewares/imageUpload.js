@@ -13,10 +13,12 @@ const storage1 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folde
 const uploadIdFrontImage = multer({ storage: storage1 });
 const storage2 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/cityImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
 const cityImage = multer({ storage: storage2 });
-const storage3 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/bikeImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
-const bikeImage = multer({ storage: storage3 });
+const storage3 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/storeImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
+const storeImage = multer({ storage: storage3 });
+const storage4 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/bikeImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
+const bikeImage = multer({ storage: storage4 });
 
 
 
 
-module.exports = { profileImage, uploadIdFrontImage, cityImage, bikeImage }
+module.exports = { profileImage, uploadIdFrontImage, cityImage, storeImage, bikeImage }

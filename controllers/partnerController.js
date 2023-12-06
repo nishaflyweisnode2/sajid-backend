@@ -7,7 +7,9 @@ const City = require('../models/cityModel');
 const Bike = require('../models/bikeModel');
 const Location = require("../models/locationModel");
 const Booking = require('../models/bookingModel');
-
+const Store = require('../models/storeModel');
+const BikeStoreRelation = require('../models/BikeStoreRelationModel');
+const Coupon = require('../models/couponModel');
 
 
 
@@ -84,6 +86,25 @@ exports.update = async (req, res) => {
         });
     }
 };
+
+exports.getStoresByPartnerId = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const stores = await Store.find({ partner: partnerId });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Stores retrieved successfully for the partner',
+            data: stores,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+
 
 
 

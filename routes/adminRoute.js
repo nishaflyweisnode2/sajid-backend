@@ -5,7 +5,7 @@ const router = express()
 
 const authJwt = require("../middlewares/auth");
 
-const { profileImage, cityImage, bikeImage } = require('../middlewares/imageUpload');
+const { profileImage, cityImage, storeImage, bikeImage } = require('../middlewares/imageUpload');
 
 
 
@@ -33,11 +33,25 @@ module.exports = (app) => {
     app.put('/api/v1/admin/locations/:id', [authJwt.isAdmin], auth.updateLocationById);
     app.delete('/api/v1/admin/locations/:id', [authJwt.isAdmin], auth.deleteLocationById);
     app.get('/api/v1/admin/locations/type/:type', [authJwt.isAdmin], auth.getLocationsByType);
+    app.post('/api/v1/admin/stores/create', [authJwt.isAdmin], storeImage.single('image'), auth.createStore);
+    app.get('/api/v1/admin/stores/getAll', [authJwt.isAdmin], auth.getAllStores);
+    app.get('/api/v1/admin/stores/:storeId', [authJwt.isAdmin], auth.getStoreById);
+    app.put('/api/v1/admin/stores/:storeId', [authJwt.isAdmin], storeImage.single('image'), auth.updateStoreById);
+    app.delete('/api/v1/admin/stores/:storeId', [authJwt.isAdmin], auth.deleteStoreById);
+    app.put('/api/v1/admin/stores/update-partner/:storeId', [authJwt.isAdmin], auth.updatePartnerIdInStore);
+    app.get('/api/v1/admin/stores/get-partner/:storeId', [authJwt.isAdmin], auth.getPartnerIdByStoreId);
+    app.delete('/api/v1/admin/stores/delete-partner/:storeId', [authJwt.isAdmin], auth.deletePartnerIdFromStore);
     app.post('/api/v1/admin/bikes', [authJwt.isAdmin], bikeImage.array('image'), auth.createBike);
     app.get('/api/v1/admin/bikes', [authJwt.isAdmin], auth.getAllBikes);
     app.get('/api/v1/admin/bikes/:id', [authJwt.isAdmin], auth.getBikeById);
     app.put('/api/v1/admin/bikes/:id', [authJwt.isAdmin], bikeImage.array('image'), auth.updateBikeById);
     app.delete('/api/v1/admin/bikes/:id', [authJwt.isAdmin], auth.deleteBikeById);
+    app.post('/api/v1/admin/bikeStoreRelation', [authJwt.isAdmin], auth.createBikeStoreRelation);
+    app.get('/api/v1/admin/bikeStoreRelations', [authJwt.isAdmin], auth.getAllBikeStoreRelations);
+    app.get('/api/v1/admin/bikeStoreRelation/:relationId', [authJwt.isAdmin], auth.getBikeStoreRelationById);
+    app.put('/api/v1/admin/bikeStoreRelation/:relationId', [authJwt.isAdmin], auth.updateBikeStoreRelation);
+    app.delete('/api/v1/admin/bikeStoreRelation/:relationId', [authJwt.isAdmin], auth.deleteBikeStoreRelation);
+    app.get('/api/v1/admin/bikes-by-store-and-partner/:storeId/:partnerId', [authJwt.isAdmin], auth.getBikesByStoreAndPartner);
     app.post('/api/v1/admin/coupons', [authJwt.isAdmin], auth.createCoupon);
     app.get('/api/v1/admin/coupons', [authJwt.isAdmin], auth.getAllCoupons);
     app.get('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.getCouponById);
