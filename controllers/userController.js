@@ -7,6 +7,7 @@ const Bike = require('../models/bikeModel');
 const Location = require("../models/locationModel");
 const Booking = require('../models/bookingModel');
 const Coupon = require('../models/couponModel');
+const BikeStoreRelation = require('../models/BikeStoreRelationModel');
 
 
 
@@ -449,14 +450,28 @@ exports.checkBikeAvailability = async (req, res) => {
                     $or: [
                         {
                             $and: [
-                                { 'pickupTime': { $lte: endDateTime } },
-                                { 'dropOffTime': { $gte: startDateTime } },
+                                { 'pickupTime': { $lte: pickupTime } },
+                                { 'dropOffTime': { $gte: dropOffTime } },
                             ],
                         },
                         {
                             $and: [
-                                { 'pickupTime': { $gte: startDateTime } },
-                                { 'dropOffTime': { $lte: endDateTime } },
+                                { 'pickupTime': { $gte: pickupTime } },
+                                { 'dropOffTime': { $lte: dropOffTime } },
+                            ],
+                        },
+                    ],
+                    $or: [
+                        {
+                            $and: [
+                                { 'pickupDate': { $lte: pickupDate } },
+                                { 'dropOffDate': { $gte: dropOffDate } },
+                            ],
+                        },
+                        {
+                            $and: [
+                                { 'pickupDate': { $lte: pickupDate } },
+                                { 'dropOffDate': { $gte: dropOffDate } },
                             ],
                         },
                     ],
@@ -472,15 +487,38 @@ exports.checkBikeAvailability = async (req, res) => {
                 },
             ],
         });
-
         const bookedBikeIds = bookedBikes.map(booking => booking.bike);
 
-        const availableBikes = await Bike.find({
-            _id: { $nin: bookedBikeIds },
-            isOnTrip: false,
-            isAvailable: true,
-            nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
-        });
+        const bike = await Bike.find();
+        const unavailableBikeIds = await BikeStoreRelation.find({
+            bike: { $in: bike },
+            totalNumberOfBookedBikes: { $gt: 0 },
+        }).distinct('bike');
+
+        let availableBikes = {};
+
+        if (bookedBikeIds) {
+            availableBikes = await Bike.find({
+                _id: { $nin: bookedBikeIds, /*$nin: unavailableBikeIds */ },
+                isOnTrip: false,
+                isAvailable: true,
+                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+            });
+        } else if (unavailableBikeIds) {
+            availableBikes = await Bike.find({
+                _id: {/* $nin: bookedBikeIds, */ $nin: unavailableBikeIds },
+                isOnTrip: false,
+                isAvailable: true,
+                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+            });
+        } else {
+            availableBikes = await Bike.find({
+                _id: { $nin: bookedBikeIds, $nin: unavailableBikeIds },
+                isOnTrip: false,
+                isAvailable: true,
+                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+            });
+        }
 
         return res.status(200).json({ status: 200, data: availableBikes });
     } catch (error) {
@@ -525,6 +563,10 @@ exports.createBooking = async (req, res) => {
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        if (user.isVerified === false) {
+            return res.status(404).json({ status: 404, message: 'User can not book bike first approved account by admin', data: null });
         }
 
         const bikeExist = await Bike.findById(bikeId);
@@ -689,7 +731,7 @@ exports.removeCouponFromBooking = async (req, res) => {
 
 exports.updatePaymentStatus = async (req, res) => {
     try {
-        const bookingId = req.params.bookingId
+        const bookingId = req.params.bookingId;
         const { paymentStatus } = req.body;
 
         const updatedBooking = await Booking.findOne({ _id: bookingId });
@@ -699,8 +741,19 @@ exports.updatePaymentStatus = async (req, res) => {
             return res.status(400).json({ error: "Invalid Payment status value" });
         }
 
-        updatedBooking.paymentStatus = paymentStatus
-        await updatedBooking.save()
+        updatedBooking.paymentStatus = paymentStatus;
+
+        if (paymentStatus === 'PAID') {
+            const bikeId = updatedBooking.bike;
+
+            const bike = await Bike.findOne({ _id: bikeId });
+
+            bike.rentalCount += 1;
+
+            await bike.save();
+        }
+
+        await updatedBooking.save();
 
         return res.status(200).json({
             status: 200,
@@ -777,6 +830,39 @@ exports.extendBooking = async (req, res) => {
         });
     }
 };
+
+exports.cancelBooking = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        if (booking.status === 'CANCELLED' || booking.isTripCompleted) {
+            return res.status(400).json({ status: 400, message: 'Booking is not cancellable', data: null });
+        }
+
+        if (booking.paymentStatus === 'PAID') {
+            const bikeId = booking.bike;
+            const bike = await Bike.findById(bikeId);
+            if (bike) {
+                bike.rentalCount -= 1;
+                await bike.save();
+            }
+        }
+
+        booking.status = 'CANCELLED';
+        await booking.save();
+
+        return res.status(200).json({ status: 200, message: 'Booking cancelled successfully', data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 
 
 

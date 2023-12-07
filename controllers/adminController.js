@@ -892,20 +892,31 @@ exports.createBikeStoreRelation = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
         }
 
-        const totalNumberOfBikes = typeof bike.totalNumberOfBikes === 'number' ? bike.totalNumberOfBikes : 0;
+        const storeRelations = await BikeStoreRelation.find({ store: storeId });
 
-        const existingRelation = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
+        const existingRelation = storeRelations.find(relation => relation.bike.toString() === bikeId);
+
         if (existingRelation) {
-            return res.status(400).json({ status: 400, message: 'Relation already exists', data: null });
+            return res.status(400).json({
+                status: 400,
+                message: 'Relation already exists for the given bike and store',
+                data: null,
+            });
         }
+
+        const totalNumberOfBikes = storeRelations.length > 0 ? storeRelations[0].totalNumberOfBikes + 1 : 1;
 
         const newRelation = await BikeStoreRelation.create({
             bike: bikeId,
             store: storeId,
-            totalNumberOfBikes: totalNumberOfBikes + 1,
+            totalNumberOfBikes: totalNumberOfBikes,
         });
 
-        return res.status(201).json({ status: 201, message: 'Bike-Store relation created successfully', data: newRelation });
+        return res.status(201).json({
+            status: 201,
+            message: 'Bike-Store relation created successfully',
+            data: newRelation,
+        });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
