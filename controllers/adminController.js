@@ -1013,6 +1013,7 @@ exports.getBikesByStoreAndPartner = async (req, res) => {
             path: 'store',
             populate: { path: 'location' }
         }).populate('bike');
+        
         if (!relation) {
             return res.status(404).json({ status: 404, message: 'Relation not found', data: null });
         }
