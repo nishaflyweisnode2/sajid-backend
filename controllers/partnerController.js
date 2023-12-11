@@ -195,6 +195,36 @@ exports.getUpcomingBookingsForPartner = async (req, res) => {
     }
 };
 
+exports.getBookingByIdForPartner = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const bookingId = req.params.bookingId;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId).populate({
+            path: 'bike',
+            populate: { path: 'owner pickup drop' }
+        }).populate('user');
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Booking retrieved successfully for the partner',
+            data: booking,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 exports.getCompletedBookingsForPartner = async (req, res) => {
     try {
         const partnerId = req.user._id;
@@ -299,22 +329,51 @@ exports.getPaymentFaliedBookingsForPartner = async (req, res) => {
 exports.approveBookingStatus = async (req, res) => {
     try {
         const partnerId = req.user._id;
-
         const bookingId = req.params.bookingId;
+
         if (!bookingId) {
             return res.status(400).json({ status: 400, message: 'Booking ID is required', data: null });
         }
 
+        const {
+            tripStartKm,
+            approvedImage,
+            vechileNo,
+        } = req.body;
+
         const booking = await Booking.findById(bookingId).populate('bike');
 
-        const storeId = booking.bike.store;
-        const isPartnerAssociated = await Store.exists({ _id: storeId, partner: partnerId });
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
 
         if (!isPartnerAssociated) {
             return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
         }
 
+        if (booking.paymentStatus !== "PAID") {
+            return res.status(403).json({ status: 403, message: 'Cannot approve booking because payment is not complete', data: null });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        if (tripStartKm) {
+            booking.tripStartKm = req.body.tripStartKm;
+        }
+
+        if (vechileNo) {
+            booking.vechileNo = req.body.vechileNo;
+        }
+
+        let otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+
+        booking.tripStartKm = req.body.tripStartKm || tripStartKm;
+        booking.approvedOtp = otp;
+        booking.approvedImage = approvedImage || req.file.path;
+        booking.vechileNo = req.body.vechileNo || vechileNo;
+
         booking.status = 'APPROVED';
+
         await booking.save();
 
         return res.status(200).json({
@@ -328,6 +387,182 @@ exports.approveBookingStatus = async (req, res) => {
     }
 };
 
+exports.approveBookingVerifyOtp = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const bookingId = req.params.bookingId;
+        const { otp } = req.body;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId);
+
+        const userId = booking.user;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).send({ message: "User not found" });
+        }
+
+        if (booking.approvedOtp !== otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        const updated = await Booking.findByIdAndUpdate(
+            bookingId,
+            { isApprovedOtp: true },
+            { new: true }
+        );
+
+        return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updated });
+    } catch (err) {
+        console.error(err.message);
+        return res.status(500).send({ error: "Internal server error" + err.message });
+    }
+};
+
+exports.approveBookingResendOTP = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const { id } = req.params;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+
+        const updated = await Booking.findOneAndUpdate(
+            { _id: id },
+            { approvedOtp: otp, isApprovedOtp: false },
+            { new: true }
+        );
+
+        return res.status(200).send({ status: 200, message: "OTP resent", data: updated });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).send({ status: 500, message: "Server error" + error.message });
+    }
+};
+
+exports.rejectBookingStatus = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const bookingId = req.params.bookingId;
+
+        const {
+            rejectRemarks,
+        } = req.body;
+
+        if (!bookingId) {
+            return res.status(400).json({ status: 400, message: 'Booking ID is required', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId);
+
+        if (!booking) {
+            return res.status(400).json({ status: 400, message: 'Booking is not found', data: null });
+        }
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        if (booking.paymentStatus !== "PAID") {
+            return res.status(403).json({ status: 403, message: 'Cannot canclelled booking because payment is not complete', data: null });
+        }
+
+        let otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+
+
+        booking.status = 'CANCELLED';
+        booking.rejectRemarks = req.body.rejectRemarks || rejectRemarks;
+        booking.rejectOtp = otp
+
+        await booking.save();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Booking status CANCELLED successfully',
+            data: booking,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.rejectBookingVerifyOtp = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const bookingId = req.params.bookingId;
+        const { otp } = req.body;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId);
+
+        const userId = booking.user;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).send({ message: "User not found" });
+        }
+
+        if (booking.rejectOtp !== otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        const updated = await Booking.findByIdAndUpdate(
+            bookingId,
+            { isRejectOtp: true },
+            { new: true }
+        );
+
+        return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updated });
+    } catch (err) {
+        console.error(err.message);
+        return res.status(500).send({ error: "Internal server error" + err.message });
+    }
+};
+
+exports.rejectBookingResendOTP = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const { id } = req.params;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+
+        const updated = await Booking.findOneAndUpdate(
+            { _id: id },
+            { rejectOtp: otp, isRejectOtp: false },
+            { new: true }
+        );
+
+        return res.status(200).send({ status: 200, message: "OTP resent", data: updated });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).send({ status: 500, message: "Server error" + error.message });
+    }
+};
 
 
 

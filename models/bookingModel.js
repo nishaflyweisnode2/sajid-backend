@@ -87,11 +87,37 @@ const bookingSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        tripStartKm: {
+            type: Number,
+        },
+        approvedOtp: {
+            type: String,
+        },
+        isApprovedOtp: {
+            type: Boolean,
+            default: false
+        },
+        approvedImage: {
+            type: String,
+        },
+        vechileNo: {
+            type: String,
+        },
         tripEndKm: {
             type: Number,
         },
         remarks: {
             type: String,
+        },
+        rejectRemarks: {
+            type: String,
+        },
+        rejectOtp: {
+            type: String,
+        },
+        isRejectOtp: {
+            type: Boolean,
+            default: false
         },
     },
     { timestamps: true }
