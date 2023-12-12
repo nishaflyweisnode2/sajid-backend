@@ -5,7 +5,7 @@ const router = express()
 
 const authJwt = require("../middlewares/auth");
 
-const { profileImage, cityImage, storeImage, bikeImage } = require('../middlewares/imageUpload');
+const { profileImage, cityImage, storeImage, bikeImage, accessoryCategoryImage, accessoryImage } = require('../middlewares/imageUpload');
 
 
 
@@ -52,6 +52,7 @@ module.exports = (app) => {
     app.put('/api/v1/admin/bikeStoreRelation/:relationId', [authJwt.isAdmin], auth.updateBikeStoreRelation);
     app.delete('/api/v1/admin/bikeStoreRelation/:relationId', [authJwt.isAdmin], auth.deleteBikeStoreRelation);
     app.get('/api/v1/admin/bikes-by-store-and-partner/:storeId/:partnerId', [authJwt.isAdmin], auth.getBikesByStoreAndPartner);
+    app.get('/api/v1/admin/accessories/partner/:partnerId', [authJwt.isAdmin], auth.getAccessoryByPartnerId);
     app.post('/api/v1/admin/coupons', [authJwt.isAdmin], auth.createCoupon);
     app.get('/api/v1/admin/coupons', [authJwt.isAdmin], auth.getAllCoupons);
     app.get('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.getCouponById);
@@ -59,6 +60,17 @@ module.exports = (app) => {
     app.delete('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.deleteCouponById);
     app.get('/api/v1/admin/bookings', [authJwt.isAdmin], auth.getAllBookings);
     app.get('/api/v1/admin/bookings/:id', [authJwt.isAdmin], auth.getBookingById);
+    app.post('/api/v1/admin/categories', [authJwt.isAdmin], accessoryCategoryImage.single('image'), auth.createAccessoryCategory);
+    app.get('/api/v1/admin/categories', [authJwt.isAdmin], auth.getAllAccessoryCategories);
+    app.get('/api/v1/admin/categories/:categoryId', [authJwt.isAdmin], auth.getAccessoryCategoryById);
+    app.put('/api/v1/admin/categories/:categoryId', [authJwt.isAdmin], accessoryCategoryImage.single('image'), auth.updateAccessoryCategory);
+    app.delete('/api/v1/admin/categories/:categoryId', [authJwt.isAdmin], auth.deleteAccessoryCategory);
+    app.post('/api/v1/admin/accessories', [authJwt.isAdmin], accessoryImage.single('image'), auth.createAccessory);
+    app.get('/api/v1/admin/accessories', [authJwt.isAdmin], auth.getAllAccessories);
+    app.get('/api/v1/admin/accessories/:accessoryId', [authJwt.isAdmin], auth.getAccessoryById);
+    app.put('/api/v1/admin/accessories/:accessoryId', [authJwt.isAdmin], accessoryImage.single('image'), auth.updateAccessory);
+    app.delete('/api/v1/admin/accessories/:accessoryId', [authJwt.isAdmin], auth.deleteAccessory);
+    app.get('/api/v1/admin/accessories/category/:categoryId', [authJwt.isAdmin], auth.getAllAccessoriesByCategoryId);
 
 
 

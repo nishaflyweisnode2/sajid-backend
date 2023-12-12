@@ -8,6 +8,8 @@ const Location = require("../models/locationModel");
 const Booking = require('../models/bookingModel');
 const Coupon = require('../models/couponModel');
 const BikeStoreRelation = require('../models/BikeStoreRelationModel');
+const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
+const Accessory = require('../models/accessory/accessoryModel')
 
 
 
@@ -434,6 +436,90 @@ exports.getCouponById = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getAllAccessoryCategories = async (req, res) => {
+    try {
+        const categories = await AccessoryCategory.find();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessory categories retrieved successfully',
+            data: categories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAccessoryCategoryById = async (req, res) => {
+    try {
+        const categoryId = req.params.categoryId;
+        const category = await AccessoryCategory.findById(categoryId);
+
+        if (!category) {
+            return res.status(404).json({ status: 404, message: 'Accessory category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory category retrieved successfully', data: category });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllAccessories = async (req, res) => {
+    try {
+        const accessories = await Accessory.find().populate('category');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAccessoryById = async (req, res) => {
+    try {
+        const accessoryId = req.params.accessoryId;
+        const accessory = await Accessory.findById(accessoryId).populate('category');
+
+        if (!accessory) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory retrieved successfully', data: accessory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllAccessoriesByCategoryId = async (req, res) => {
+    try {
+        const categoryId = req.params.categoryId;
+
+        const category = await AccessoryCategory.findById(categoryId);
+        if (!category) {
+            return res.status(400).json({ status: 400, message: 'Invalid accessory category ID', data: null });
+        }
+
+        const accessories = await Accessory.find({ category: categoryId });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully by category ID',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
 

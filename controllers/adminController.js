@@ -10,6 +10,8 @@ const Store = require('../models/storeModel');
 const BikeStoreRelation = require('../models/BikeStoreRelationModel');
 const Coupon = require('../models/couponModel');
 const Booking = require('../models/bookingModel');
+const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
+const Accessory = require('../models/accessory/accessoryModel')
 
 
 
@@ -885,18 +887,22 @@ exports.deleteBikeById = async (req, res) => {
 
 exports.createBikeStoreRelation = async (req, res) => {
     try {
-        const { bikeId, storeId } = req.body;
+        const { bikeId, storeId, accessoryId } = req.body;
 
         const bike = await Bike.findById(bikeId);
         if (!bike) {
             return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
         }
 
+        const accessory = await Accessory.findById(accessoryId);
+        if (!accessory) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
         const storeRelations = await BikeStoreRelation.find({ store: storeId });
+        const existingBikeRelation = storeRelations.find(relation => relation.bike.toString() === bikeId);
 
-        const existingRelation = storeRelations.find(relation => relation.bike.toString() === bikeId);
-
-        if (existingRelation) {
+        if (existingBikeRelation) {
             return res.status(400).json({
                 status: 400,
                 message: 'Relation already exists for the given bike and store',
@@ -904,12 +910,26 @@ exports.createBikeStoreRelation = async (req, res) => {
             });
         }
 
+        const accessoryRelations = await BikeStoreRelation.find({ store: storeId });
+        const existingAccessoryRelation = accessoryRelations.find(relation => relation.accessory.toString() === accessoryId);
+
+        if (existingAccessoryRelation) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Relation already exists for the given accessory and store',
+                data: null,
+            });
+        }
+
         const totalNumberOfBikes = storeRelations.length > 0 ? storeRelations[0].totalNumberOfBikes + 1 : 1;
+        const totalNumberOfAccessory = accessoryRelations.length > 0 ? accessoryRelations[0].totalNumberOfAccessory + 1 : 1;
 
         const newRelation = await BikeStoreRelation.create({
             bike: bikeId,
             store: storeId,
+            accessory: accessoryId,
             totalNumberOfBikes: totalNumberOfBikes,
+            totalNumberOfAccessory: totalNumberOfAccessory,
         });
 
         return res.status(201).json({
@@ -928,7 +948,11 @@ exports.getAllBikeStoreRelations = async (req, res) => {
         const relations = await BikeStoreRelation.find().populate({
             path: 'store',
             populate: { path: 'location' }
-        }).populate('bike');
+        }).populate('bike')
+            .populate({
+                path: 'accessory',
+                populate: { path: 'category' }
+            });
         return res.status(200).json({ status: 200, message: 'Bike-Store relations retrieved successfully', data: relations });
     } catch (error) {
         console.error(error);
@@ -942,7 +966,11 @@ exports.getBikeStoreRelationById = async (req, res) => {
         const relation = await BikeStoreRelation.findById(relationId).populate({
             path: 'store',
             populate: { path: 'location' }
-        }).populate('bike');
+        }).populate('bike')
+            .populate({
+                path: 'accessory',
+                populate: { path: 'category' }
+            });
 
         if (!relation) {
             return res.status(404).json({ status: 404, message: 'Bike-Store relation not found', data: null });
@@ -958,7 +986,8 @@ exports.getBikeStoreRelationById = async (req, res) => {
 exports.updateBikeStoreRelation = async (req, res) => {
     try {
         const relationId = req.params.relationId;
-        const { bikeId, storeId, totalNumberOfBikes, totalNumberOfBookedBikes } = req.body;
+        const { bikeId, storeId, accessoryId, totalNumberOfBikes, totalNumberOfBookedBikes, totalNumberOfAccessory, totalNumberOfBookedAccessory } = req.body;
+
 
         const existingRelation = await BikeStoreRelation.findById(relationId);
         if (!existingRelation) {
@@ -970,15 +999,28 @@ exports.updateBikeStoreRelation = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
         }
 
+        const accessory = await Accessory.findById(accessoryId);
+        if (!accessory) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
         // totalNumberOfBikes = typeof bike.totalNumberOfBikes === 'number' ? bike.totalNumberOfBikes : 0;
 
-        const existing = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
-        if (existing) {
-            return res.status(400).json({ status: 400, message: 'Relation already exists', data: null });
+        const existingBikeRelation = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
+        if (existingBikeRelation) {
+            return res.status(400).json({ status: 400, message: 'Relation already exists for the given bike and store', data: null });
+        }
+
+        const existingAccessoryRelation = await BikeStoreRelation.findOne({ accessory: accessoryId, store: storeId });
+        if (existingAccessoryRelation) {
+            return res.status(400).json({ status: 400, message: 'Relation already exists for the given accessory and store', data: null });
         }
 
         existingRelation.totalNumberOfBikes = totalNumberOfBikes;
         existingRelation.totalNumberOfBookedBikes = totalNumberOfBookedBikes;
+        existingRelation.totalNumberOfAccessory = totalNumberOfAccessory;
+        existingRelation.totalNumberOfBookedAccessory = totalNumberOfBookedAccessory;
+
 
         const updatedRelation = await existingRelation.save();
 
@@ -1012,8 +1054,12 @@ exports.getBikesByStoreAndPartner = async (req, res) => {
         const relation = await BikeStoreRelation.find({ store: storeId, partner: partnerId }).populate({
             path: 'store',
             populate: { path: 'location' }
-        }).populate('bike');
-        
+        }).populate('bike')
+            .populate({
+                path: 'accessory',
+                populate: { path: 'category' }
+            });
+
         if (!relation) {
             return res.status(404).json({ status: 404, message: 'Relation not found', data: null });
         }
@@ -1022,6 +1068,33 @@ exports.getBikesByStoreAndPartner = async (req, res) => {
             status: 200,
             message: 'Bikes retrieved successfully by store and partner',
             data: relation,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAccessoryByPartnerId = async (req, res) => {
+    try {
+        const partnerId = req.params.partnerId;
+
+        const stores = await Store.find({ partner: partnerId });
+
+        const storeIds = stores.map(store => store._id);
+
+        const relations = await BikeStoreRelation.find({ store: { $in: storeIds } });
+
+        const accessoryIds = relations.map(relation => relation.accessory);
+
+        const accessories = await Accessory.find({ _id: { $in: accessoryIds } })
+            .populate('category')
+            .exec();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully for the partner',
+            data: accessories,
         });
     } catch (error) {
         console.error(error);
@@ -1133,6 +1206,239 @@ exports.getBookingById = async (req, res) => {
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
+
+exports.createAccessoryCategory = async (req, res) => {
+    try {
+        const { name, description, status } = req.body;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const existingCategory = await AccessoryCategory.findOne({ name });
+        if (existingCategory) {
+            return res.status(400).json({ status: 400, message: 'Accessory category with this name already exists', data: null });
+        }
+
+        const newCategory = await AccessoryCategory.create({ name, description, status, image: req.file.path, });
+
+        return res.status(201).json({ status: 201, message: 'Accessory category created successfully', data: newCategory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllAccessoryCategories = async (req, res) => {
+    try {
+        const categories = await AccessoryCategory.find();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessory categories retrieved successfully',
+            data: categories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAccessoryCategoryById = async (req, res) => {
+    try {
+        const categoryId = req.params.categoryId;
+        const category = await AccessoryCategory.findById(categoryId);
+
+        if (!category) {
+            return res.status(404).json({ status: 404, message: 'Accessory category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory category retrieved successfully', data: category });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateAccessoryCategory = async (req, res) => {
+    try {
+        const categoryId = req.params.categoryId;
+        const { name, description, status } = req.body;
+
+        let imagePath;
+
+        if (req.file) {
+            imagePath = req.file.path;
+        }
+
+        const updatedCategory = await AccessoryCategory.findByIdAndUpdate(
+            categoryId,
+            { name, description, status, image: imagePath },
+            { new: true }
+        );
+
+        if (!updatedCategory) {
+            return res.status(404).json({ status: 404, message: 'Accessory category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory category updated successfully', data: updatedCategory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteAccessoryCategory = async (req, res) => {
+    try {
+        const categoryId = req.params.categoryId;
+
+        const deletedCategory = await AccessoryCategory.findByIdAndDelete(categoryId);
+
+        if (!deletedCategory) {
+            return res.status(404).json({ status: 404, message: 'Accessory category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory category deleted successfully', data: deletedCategory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createAccessory = async (req, res) => {
+    try {
+        const { name, description, categoryId, price, stock, status } = req.body;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const category = await AccessoryCategory.findById(categoryId);
+        if (!category) {
+            return res.status(400).json({ status: 400, message: 'Invalid accessory category ID', data: null });
+        }
+
+        const newAccessory = await Accessory.create({
+            name,
+            description,
+            category: categoryId,
+            price,
+            stock,
+            image: req.file.path,
+            status
+        });
+
+        return res.status(201).json({ status: 201, message: 'Accessory created successfully', data: newAccessory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllAccessories = async (req, res) => {
+    try {
+        const accessories = await Accessory.find().populate('category');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAccessoryById = async (req, res) => {
+    try {
+        const accessoryId = req.params.accessoryId;
+        const accessory = await Accessory.findById(accessoryId).populate('category');
+
+        if (!accessory) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory retrieved successfully', data: accessory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateAccessory = async (req, res) => {
+    try {
+        const accessoryId = req.params.accessoryId;
+        const { name, description, categoryId, price, stock, status } = req.body;
+
+        let imagePath;
+
+        if (req.file) {
+            imagePath = req.file.path;
+        }
+
+        const category = await AccessoryCategory.findById(categoryId);
+        if (!category) {
+            return res.status(400).json({ status: 400, message: 'Invalid accessory category ID', data: null });
+        }
+
+        const updatedAccessory = await Accessory.findByIdAndUpdate(
+            accessoryId,
+            { name, description, categoryId, price, stock, status, image: imagePath, },
+            { new: true }
+        ).populate('category');
+
+        if (!updatedAccessory) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory updated successfully', data: updatedAccessory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteAccessory = async (req, res) => {
+    try {
+        const accessoryId = req.params.accessoryId;
+
+        const deletedAccessory = await Accessory.findByIdAndDelete(accessoryId);
+
+        if (!deletedAccessory) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Accessory deleted successfully', data: deletedAccessory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllAccessoriesByCategoryId = async (req, res) => {
+    try {
+        const categoryId = req.params.categoryId;
+
+        const category = await AccessoryCategory.findById(categoryId);
+        if (!category) {
+            return res.status(400).json({ status: 400, message: 'Invalid accessory category ID', data: null });
+        }
+
+        const accessories = await Accessory.find({ category: categoryId });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully by category ID',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+
 
 
 

@@ -10,7 +10,8 @@ const Booking = require('../models/bookingModel');
 const Store = require('../models/storeModel');
 const BikeStoreRelation = require('../models/BikeStoreRelationModel');
 const Coupon = require('../models/couponModel');
-
+const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
+const Accessory = require('../models/accessory/accessoryModel')
 
 
 exports.registration = async (req, res) => {
@@ -561,6 +562,60 @@ exports.rejectBookingResendOTP = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).send({ status: 500, message: "Server error" + error.message });
+    }
+};
+
+exports.getAccessoryByPartnerId = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const stores = await Store.find({ partner: partnerId });
+
+        const storeIds = stores.map(store => store._id);
+
+        const relations = await BikeStoreRelation.find({ store: { $in: storeIds } });
+
+        const accessoryIds = relations.map(relation => relation.accessory);
+
+        const accessories = await Accessory.find({ _id: { $in: accessoryIds } })
+            .populate('category')
+            .exec();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully for the partner',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAccessoryByPartnerAndStore = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const stores = await Store.find({ partner: partnerId });
+
+        const storeIds = stores.map(store => store._id);
+
+        const relations = await BikeStoreRelation.find({ store: { $in: storeIds } });
+
+        const accessoryIds = relations.map(relation => relation.accessory);
+
+        const accessories = await Accessory.find({ _id: { $in: accessoryIds } })
+            .populate('category')
+            .exec();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully for the partner and store',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
 

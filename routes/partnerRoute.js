@@ -30,6 +30,8 @@ module.exports = (app) => {
     app.put('/api/v1/partner/bookings/:bookingId/reject', [authJwt.isPartner], auth.rejectBookingStatus);
     app.post("/api/v1/partner/bookings/cancleBooking/verify/:bookingId", [authJwt.isPartner], auth.rejectBookingVerifyOtp);
     app.post("/api/v1/partner/bookings/cancleBooking/resendOtp/:id", [authJwt.isPartner], auth.rejectBookingResendOTP);
+    app.get('/api/v1/partner/accessories/partner', [authJwt.isPartner], auth.getAccessoryByPartnerId);
+    app.get('/api/v1/partner/accessories/partner/:storeId', [authJwt.isPartner], auth.getAccessoryByPartnerAndStore);
 
 
 

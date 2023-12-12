@@ -30,6 +30,11 @@ module.exports = (app) => {
     app.get('/api/v1/user/bikes/:id', [authJwt.verifyToken], auth.getBikeById);
     app.get('/api/v1/user/coupons', [authJwt.verifyToken], auth.getAllCoupons);
     app.get('/api/v1/user/coupons/:id', [authJwt.verifyToken], auth.getCouponById);
+    app.get('/api/v1/user/categories', [authJwt.verifyToken], auth.getAllAccessoryCategories);
+    app.get('/api/v1/user/categories/:categoryId', [authJwt.verifyToken], auth.getAccessoryCategoryById);
+    app.get('/api/v1/user/accessories', [authJwt.verifyToken], auth.getAllAccessories);
+    app.get('/api/v1/user/accessories/:accessoryId', [authJwt.verifyToken], auth.getAccessoryById);
+    app.get('/api/v1/user/accessories/category/:categoryId', [authJwt.verifyToken], auth.getAllAccessoriesByCategoryId);
     app.get('/api/v1/user/bike/availability', [authJwt.verifyToken], auth.checkBikeAvailability);
     app.post("/api/v1/user/booking/create", [authJwt.verifyToken], auth.createBooking);
     app.get('/api/v1/user/bookings/user', [authJwt.verifyToken], auth.getBookingsByUser);

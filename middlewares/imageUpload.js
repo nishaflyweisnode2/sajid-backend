@@ -19,8 +19,12 @@ const storage4 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folde
 const bikeImage = multer({ storage: storage4 });
 const storage5 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/bikeApprovedImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
 const bikeApprovedImage = multer({ storage: storage5 });
+const storage6 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/accessoryCategoryImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
+const accessoryCategoryImage = multer({ storage: storage6 });
+const storage7 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/accessoryImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
+const accessoryImage = multer({ storage: storage7 });
 
 
 
 
-module.exports = { profileImage, uploadIdFrontImage, cityImage, storeImage, bikeImage, bikeApprovedImage }
+module.exports = { profileImage, uploadIdFrontImage, cityImage, storeImage, bikeImage, bikeApprovedImage, accessoryCategoryImage, accessoryImage }
