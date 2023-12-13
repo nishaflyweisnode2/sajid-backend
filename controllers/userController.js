@@ -616,10 +616,18 @@ exports.checkBikeAvailability = async (req, res) => {
 exports.createBooking = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime } = req.body;
+        const { bikeId, pickupDate, /*dropOffDate,*/ pickupTime, dropOffTime, subscriptionMonths } = req.body;
+        let dropOffDate;
 
         const currentDate = new Date();
         const requestedPickupDate = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
+
+        if (!subscriptionMonths || subscriptionMonths <= 0) {
+            return res.status(400).json({ status: 400, message: 'Invalid subscription duration', data: null });
+        }
+
+        dropOffDate = new Date(requestedPickupDate);
+        dropOffDate.setMonth(dropOffDate.getMonth() + subscriptionMonths);
 
         if (requestedPickupDate < currentDate) {
             return res.status(400).json({ status: 400, message: 'Invalid pickup date. Pickup date cannot be earlier than the current date.', data: null });
@@ -694,6 +702,8 @@ exports.createBooking = async (req, res) => {
             taxAmount: roundedTaxAmount,
             totalPrice: roundedTotalPrice,
             depositedMoney: bikeExist.depositMoney,
+            isSubscription: true,
+            subscriptionMonths,
         });
 
         return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });

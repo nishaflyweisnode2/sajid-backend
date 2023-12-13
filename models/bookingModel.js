@@ -119,6 +119,14 @@ const bookingSchema = new mongoose.Schema(
             type: Boolean,
             default: false
         },
+        isSubscription: {
+            type: Boolean,
+            default: false,
+        },
+        subscriptionMonths: {
+            type: Number,
+            default: 0,
+        },
     },
     { timestamps: true }
 );
