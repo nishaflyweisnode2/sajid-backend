@@ -26,6 +26,12 @@ module.exports = (app) => {
     app.get("/api/v1/user/profile/:userId", [authJwt.verifyToken], auth.getUserProfileById);
     app.get("/api/v1/user/city/cities", [authJwt.verifyToken], auth.getAllCities);
     app.get("/api/v1/user/city/cities/:id", [authJwt.verifyToken], auth.getCityById);
+    app.post('/api/v1/user/address/create', [authJwt.verifyToken], auth.createAddress);
+    app.get('/api/v1/user/address/getAll', [authJwt.verifyToken], auth.getAllAddress);
+    app.get('/api/v1/user/address/:id', [authJwt.verifyToken], auth.getAddressById);
+    app.put('/api/v1/user/address/:id', [authJwt.verifyToken], auth.updateAddressById);
+    app.delete('/api/v1/user/address/:id', [authJwt.verifyToken], auth.deleteAddressById);
+    app.get('/api/v1/user/address/type/:type', [authJwt.verifyToken], auth.getAddressByType);
     app.get('/api/v1/user/bikes', [authJwt.verifyToken], auth.getAllBikes);
     app.get('/api/v1/user/bikes/:id', [authJwt.verifyToken], auth.getBikeById);
     app.get('/api/v1/user/coupons', [authJwt.verifyToken], auth.getAllCoupons);

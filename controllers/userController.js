@@ -4,7 +4,8 @@ const jwt = require("jsonwebtoken");
 const newOTP = require("otp-generators");
 const City = require('../models/cityModel');
 const Bike = require('../models/bikeModel');
-const Location = require("../models/locationModel");
+const Location = require("../models/bikeLocationModel");
+const Address = require("../models/userAddressModel");
 const Booking = require('../models/bookingModel');
 const Coupon = require('../models/couponModel');
 const BikeStoreRelation = require('../models/BikeStoreRelationModel');
@@ -386,6 +387,140 @@ exports.getCityById = async (req, res) => {
     }
 };
 
+
+exports.createAddress = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const { name, coordinates, type, address } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const pickupLocation = new Address({
+            user: user.id,
+            name,
+            coordinates,
+            type,
+            address,
+        });
+
+        const savedPickupLocation = await pickupLocation.save();
+
+        res.status(201).json({
+            status: 201,
+            message: 'Address created successfully',
+            data: { pickupLocation: savedPickupLocation },
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getAllAddress = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const address = await Address.find({ user: userId });
+
+        res.status(200).json({ status: 200, data: address });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getAddressById = async (req, res) => {
+    try {
+        const addressId = req.params.id;
+        const address = await Address.findById(addressId);
+
+        if (!address) {
+            return res.status(404).json({ status: 404, message: 'address not found' });
+        }
+
+        res.status(200).json({ status: 200, data: address });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.updateAddressById = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const addressId = req.params.id;
+        const updateFields = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const existingAddress = await Address.findById(addressId);
+
+        if (!existingAddress) {
+            return res.status(404).json({ status: 404, message: 'Address not found' });
+        }
+
+        if (existingAddress.user.toString() !== userId.toString()) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized: User does not have permission to update this Address' });
+        }
+
+        const updatedAddress = await Address.findByIdAndUpdate(addressId, updateFields, { new: true });
+
+        res.status(200).json({
+            status: 200,
+            message: 'Address updated successfully',
+            data: updatedAddress,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.deleteAddressById = async (req, res) => {
+    try {
+        const addressId = req.params.id;
+        const deletedLocation = await Address.findByIdAndDelete(addressId);
+
+        if (!deletedLocation) {
+            return res.status(404).json({ status: 404, message: 'Address not found' });
+        }
+
+        res.status(200).json({ status: 200, message: 'Address deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.getAddressByType = async (req, res) => {
+    try {
+        const { type } = req.params;
+
+        const locations = await Address.find({ type: type });
+        console.log(locations);
+
+        if (locations && locations.length > 0) {
+            return res.json(locations);
+        } else {
+            return res.status(404).json({ message: `No address found for type: ${type}` });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: `Failed to retrieve address for type: ${type}` });
+    }
+};
+
 exports.getAllBikes = async (req, res) => {
     try {
         const bikes = await Bike.find();
@@ -564,7 +699,8 @@ exports.checkBikeAvailability = async (req, res) => {
                 },
                 {
                     $or: [
-                        { 'status': 'APPROVED', 'isTripCompleted': false },
+                        { 'status': 'PENDING', 'isTripCompleted': false },
+                        { 'isSubscription': false },
                         {
                             'isTimeExtended': true,
                             'timeExtendedDropOffTime': { $gte: startDateTime, $lte: endDateTime },
@@ -613,81 +749,57 @@ exports.checkBikeAvailability = async (req, res) => {
     }
 };
 
-exports.createBooking = async (req, res) => {
+exports.createBooking1 = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { bikeId, pickupDate, /*dropOffDate,*/ pickupTime, dropOffTime, subscriptionMonths } = req.body;
-        let dropOffDate;
-
+        const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime } = req.body;
         const currentDate = new Date();
         const requestedPickupDate = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
-
-        if (!subscriptionMonths || subscriptionMonths <= 0) {
-            return res.status(400).json({ status: 400, message: 'Invalid subscription duration', data: null });
-        }
-
-        dropOffDate = new Date(requestedPickupDate);
-        dropOffDate.setMonth(dropOffDate.getMonth() + subscriptionMonths);
-
         if (requestedPickupDate < currentDate) {
             return res.status(400).json({ status: 400, message: 'Invalid pickup date. Pickup date cannot be earlier than the current date.', data: null });
         }
-
         const existingBooking = await Booking.findOne({ bike: bikeId, pickupDate, pickupTime, dropOffDate, dropOffTime, isTripCompleted: false, });
-
         if (existingBooking) {
             return res.status(400).json({
                 status: 400, message: 'Bike is already booked for the specified pickup date and time.', data: null,
             });
         }
-
         const existingExtendedBooking = await Booking.findOne({
             bike: bikeId,
             extendedDropOffDate: pickupDate || extendedDropOffDate,
             extendedDropOffTime: pickupTime || extendedDropOffTime,
             isTripCompleted: false,
         });
-
         if (existingExtendedBooking) {
             return res.status(400).json({
                 status: 400, message: 'Bike is already booked for the specified extended drop-off date and time.', data: null,
             });
         }
-
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found', data: null });
         }
-
         if (user.isVerified === false) {
             return res.status(404).json({ status: 404, message: 'User can not book bike first approved account by admin', data: null });
         }
-
         const bikeExist = await Bike.findById(bikeId);
         if (!bikeExist) {
             return res.status(400).json({ status: 400, message: 'Bike not available', data: null });
         }
-
         const rentalPrice = bikeExist.rentalPrice;
         console.log("rentalPrice", rentalPrice);
-
         const durationInDays = calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime);
         console.log("durationInDays", durationInDays);
-
         const basePrice = rentalPrice * durationInDays;
         const taxAmount = (3 / 100) * basePrice;
         const totalPrice = basePrice + taxAmount;
-
         console.log("totalPrice", totalPrice);
-
         if (isNaN(totalPrice) || totalPrice < 0) {
             return res.status(400).json({ status: 400, message: 'Invalid totalPrice', data: null });
         }
-
         const roundedBasePrice = Math.round(basePrice);
         const roundedTaxAmount = Math.round(taxAmount);
         const roundedTotalPrice = Math.round(totalPrice);
-
         const newBooking = await Booking.create({
             user: user._id,
             bike: bikeExist._id,
@@ -702,11 +814,139 @@ exports.createBooking = async (req, res) => {
             taxAmount: roundedTaxAmount,
             totalPrice: roundedTotalPrice,
             depositedMoney: bikeExist.depositMoney,
+        });
+        return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createBooking = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        let { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, subscriptionMonths } = req.body;
+
+        const currentDate = new Date();
+        const requestedPickupDate = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
+
+        if (subscriptionMonths) {
+            if (!subscriptionMonths || subscriptionMonths <= 0) {
+                return res.status(400).json({ status: 400, message: 'Invalid subscription duration', data: null });
+            }
+
+            dropOffDate = new Date(requestedPickupDate);
+            dropOffDate.setUTCMonth(dropOffDate.getUTCMonth() + subscriptionMonths);
+            dropOffDate.setUTCHours(0, 0, 0, 0);
+            const dropOffDateString = dropOffDate.toISOString().split('T')[0];
+            dropOffDate = dropOffDateString
+            dropOffTime = pickupTime
+        }
+        console.log("dropOffDate", dropOffDate);
+
+        if (requestedPickupDate < currentDate) {
+            return res.status(400).json({ status: 400, message: 'Invalid pickup date. Pickup date cannot be earlier than the current date.', data: null });
+        }
+
+        const existingBookingPickup = await Booking.findOne({
+            bike: bikeId,
+            pickupDate,
+            pickupTime,
+            dropOffDate: { $gte: pickupDate },
+            isTripCompleted: false,
             isSubscription: true,
-            subscriptionMonths,
         });
 
-        return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
+        const existingBookingDrop = await Booking.findOne({
+            bike: bikeId,
+            pickupDate: { $lte: dropOffDate },
+            dropOffDate,
+            dropOffTime,
+            isTripCompleted: false,
+            isSubscription: true,
+        });
+
+        const existingExtendedBookingPickup = await Booking.findOne({
+            bike: bikeId,
+            extendedDropOffDate: pickupDate || extendedDropOffDate,
+            extendedDropOffTime: pickupTime || extendedDropOffTime,
+            isTripCompleted: false,
+            isSubscription: true,
+        });
+
+        const existingExtendedBookingDrop = await Booking.findOne({
+            bike: bikeId,
+            pickupDate: { $lte: dropOffDate },
+            dropOffDate,
+            dropOffTime,
+            isTripCompleted: false,
+            isSubscription: true,
+        });
+
+        if (existingBookingPickup || existingBookingDrop || existingExtendedBookingPickup || existingExtendedBookingDrop) {
+            return res.status(400).json({ status: 400, message: 'Bike is already booked for the specified pickup and/or drop-off date and time.', data: null, });
+        } else {
+
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ status: 404, message: 'User not found', data: null });
+            }
+
+            if (user.isVerified === false) {
+                return res.status(404).json({ status: 404, message: 'User can not book bike first approved account by admin', data: null });
+            }
+
+            const bikeExist = await Bike.findById(bikeId);
+            if (!bikeExist) {
+                return res.status(400).json({ status: 400, message: 'Bike not available', data: null });
+            }
+
+            const isBikeAvailable = await checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime);
+            if (!isBikeAvailable) {
+                return res.status(400).json({ status: 400, message: 'Bike is not available for the specified dates and times.', data: null });
+            }
+
+            const rentalPrice = bikeExist.rentalPrice;
+            console.log("rentalPrice", rentalPrice);
+
+            const durationInDays = calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime);
+            console.log("durationInDays", durationInDays);
+
+            const basePrice = rentalPrice * durationInDays;
+            const taxAmount = (3 / 100) * basePrice;
+            const totalPrice = basePrice + taxAmount;
+
+            console.log("totalPrice", totalPrice);
+
+            if (isNaN(totalPrice) || totalPrice < 0) {
+                return res.status(400).json({ status: 400, message: 'Invalid totalPrice', data: null });
+            }
+
+            const roundedBasePrice = Math.round(basePrice);
+            const roundedTaxAmount = Math.round(taxAmount);
+            const roundedTotalPrice = Math.round(totalPrice);
+
+            const newBooking = await Booking.create({
+                user: user._id,
+                bike: bikeExist._id,
+                pickupLocation: bikeExist.pickup,
+                dropOffLocation: bikeExist.drop,
+                pickupDate,
+                dropOffDate,
+                pickupTime,
+                dropOffTime,
+                status: "PENDING",
+                price: roundedBasePrice,
+                taxAmount: roundedTaxAmount,
+                totalPrice: roundedTotalPrice,
+                depositedMoney: bikeExist.depositMoney,
+                isSubscription: subscriptionMonths ? true : false,
+                subscriptionMonths,
+            });
+
+            return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
+
+        }
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
@@ -718,7 +958,7 @@ function calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTim
     console.log("pickupDateTime", pickupDateTime);
 
     const dropOffDateTime = new Date(`${dropOffDate}T${dropOffTime}:00.000Z`);
-    console.log("dropOffDateTime", dropOffDateTime);
+    console.log("dropOffDate", dropOffDate);
 
     const durationInMilliseconds = dropOffDateTime - pickupDateTime;
     console.log("durationInMilliseconds", durationInMilliseconds);
@@ -727,6 +967,40 @@ function calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTim
     console.log("durationInDays", durationInDays);
 
     return durationInDays;
+}
+
+async function checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime) {
+    const existingBookings = await Booking.find({
+        bike: bikeId,
+        $or: [
+            {
+                $and: [
+                    { pickupDate: { $lte: pickupDate } },
+                    { dropOffDate: { $gte: pickupDate } },
+                    { pickupTime: { $lte: pickupTime } },
+                    { dropOffTime: { $gte: pickupTime } },
+                ],
+            },
+            {
+                $and: [
+                    { pickupDate: { $lte: dropOffDate } },
+                    { dropOffDate: { $gte: dropOffDate } },
+                    { pickupTime: { $lte: dropOffTime } },
+                    { dropOffTime: { $gte: dropOffTime } },
+                ],
+            },
+            // {
+            //     $and: [
+            //         // { isTimeExtended: true },
+            //         { timeExtendedDropOffTime: { $gte: pickupDate, $lte: dropOffTime } },
+            //     ],
+            // },
+        ],
+        isTripCompleted: false,
+        isSubscription: false,
+    });
+
+    return existingBookings.length === 0;
 }
 
 exports.getBookingsByUser = async (req, res) => {
@@ -831,6 +1105,10 @@ exports.updatePaymentStatus = async (req, res) => {
         const { paymentStatus } = req.body;
 
         const updatedBooking = await Booking.findOne({ _id: bookingId });
+
+        if (!updatedBooking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
 
         const validStatusValues = ['PENDING', 'FAILED', 'PAID'];
         if (!validStatusValues.includes(paymentStatus)) {

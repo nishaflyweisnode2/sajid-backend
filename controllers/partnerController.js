@@ -5,7 +5,7 @@ const newOTP = require("otp-generators");
 const bcrypt = require("bcryptjs");
 const City = require('../models/cityModel');
 const Bike = require('../models/bikeModel');
-const Location = require("../models/locationModel");
+const Location = require("../models/bikeLocationModel");
 const Booking = require('../models/bookingModel');
 const Store = require('../models/storeModel');
 const BikeStoreRelation = require('../models/BikeStoreRelationModel');
@@ -344,6 +344,10 @@ exports.approveBookingStatus = async (req, res) => {
 
         const booking = await Booking.findById(bookingId).populate('bike');
 
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
         const isPartnerAssociated = await Store.exists({ partner: partnerId });
 
         if (!isPartnerAssociated) {
@@ -402,6 +406,10 @@ exports.approveBookingVerifyOtp = async (req, res) => {
 
         const booking = await Booking.findById(bookingId);
 
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
         const userId = booking.user;
 
         const user = await User.findById(userId);
@@ -413,13 +421,24 @@ exports.approveBookingVerifyOtp = async (req, res) => {
             return res.status(400).json({ message: "Invalid OTP" });
         }
 
-        const updated = await Booking.findByIdAndUpdate(
+        const updatedBooking = await Booking.findByIdAndUpdate(
             bookingId,
-            { isApprovedOtp: true },
+            {
+                isApprovedOtp: true,
+                tripStartTime: new Date
+            },
             { new: true }
         );
 
-        return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updated });
+        if (updatedBooking) {
+            await Bike.findByIdAndUpdate(
+                updatedBooking.bike,
+                { isOnTrip: true },
+                { new: true }
+            );
+        }
+
+        return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updatedBooking });
     } catch (err) {
         console.error(err.message);
         return res.status(500).send({ error: "Internal server error" + err.message });
@@ -514,6 +533,10 @@ exports.rejectBookingVerifyOtp = async (req, res) => {
         }
 
         const booking = await Booking.findById(bookingId);
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
 
         const userId = booking.user;
 
@@ -613,6 +636,49 @@ exports.getAccessoryByPartnerAndStore = async (req, res) => {
             message: 'Accessories retrieved successfully for the partner and store',
             data: accessories,
         });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateTripEndDetails = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId;
+        const { tripEndKm, remarks } = req.query;
+
+        if (!bookingId) {
+            return res.status(400).json({ status: 400, message: 'Booking ID is required', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId);
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        if (booking.isTripCompleted) {
+            return res.status(400).json({ status: 400, message: 'Trip is already marked as completed', data: null });
+        }
+
+        booking.tripEndKm = req.query.tripEndKm !== undefined ? req.query.tripEndKm : booking.tripEndKm;
+
+        booking.remarks = req.query.remarks !== undefined ? req.query.remarks : booking.remarks;
+
+        const bike = await Bike.findById(booking.bike);
+        if (bike) {
+            bike.totalKm += booking.tripEndKm;
+            await bike.save();
+        }
+
+        booking.tripEndTime = new Date();
+        booking.isTripCompleted = true;
+        booking.status = "COMPLETED";
+
+        const updatedBooking = await booking.save();
+
+        return res.status(200).json({ status: 200, message: 'Trip end details updated successfully', data: updatedBooking });
+
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
