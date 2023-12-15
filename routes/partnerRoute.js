@@ -33,7 +33,8 @@ module.exports = (app) => {
     app.get('/api/v1/partner/accessories/partner', [authJwt.isPartner], auth.getAccessoryByPartnerId);
     app.get('/api/v1/partner/accessories/partner/:storeId', [authJwt.isPartner], auth.getAccessoryByPartnerAndStore);
     app.put('/api/v1/partner/bookings/:bookingId/trip-end-details', [authJwt.isPartner], auth.updateTripEndDetails);
-
+    app.post("/api/v1/partner/bookings/trip-end-details/verify/:bookingId", [authJwt.isPartner], auth.approveTripEndDetailsVerifyOtp);
+    app.post("/api/v1/partner/bookings/trip-end-details/resendOtp/:id", [authJwt.isPartner], auth.approveTripEndDetailsResendOTP);
 
 
 

@@ -12,6 +12,8 @@ const Coupon = require('../models/couponModel');
 const Booking = require('../models/bookingModel');
 const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
 const Accessory = require('../models/accessory/accessoryModel')
+const GST = require('../models/gstModel');
+const HelpAndSupport = require('../models/help&SupportModel');
 
 
 
@@ -1431,6 +1433,212 @@ exports.getAllAccessoriesByCategoryId = async (req, res) => {
             status: 200,
             message: 'Accessories retrieved successfully by category ID',
             data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createGST = async (req, res) => {
+    try {
+        const { name, rate, status } = req.body;
+        const newGST = await GST.create({ name, rate, status });
+        return res.status(201).json({ status: 201, message: 'GST entry created successfully', data: newGST });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllGST = async (req, res) => {
+    try {
+        const gstEntries = await GST.find();
+        return res.status(200).json({ status: 200, data: gstEntries });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getGSTById = async (req, res) => {
+    try {
+        const gstEntry = await GST.findById(req.params.id);
+        if (!gstEntry) {
+            return res.status(404).json({ status: 404, message: 'GST entry not found', data: null });
+        }
+        return res.status(200).json({ status: 200, data: gstEntry });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateGST = async (req, res) => {
+    try {
+        const { name, rate, status } = req.body;
+        const updatedGST = await GST.findByIdAndUpdate(req.params.id, { name, rate, status }, { new: true });
+        if (!updatedGST) {
+            return res.status(404).json({ status: 404, message: 'GST entry not found', data: null });
+        }
+        return res.status(200).json({ status: 200, message: 'GST entry updated successfully', data: updatedGST });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteGST = async (req, res) => {
+    try {
+        const deletedGST = await GST.findByIdAndDelete(req.params.id);
+        if (!deletedGST) {
+            return res.status(404).json({ status: 404, message: 'GST entry not found', data: null });
+        }
+        return res.status(200).json({ status: 200, message: 'GST entry deleted successfully', data: null });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createInquiry = async (req, res) => {
+    try {
+        const { mobileNumber, email } = req.body;
+
+        const newInquiry = await HelpAndSupport.create({
+            mobileNumber,
+            email,
+        });
+
+        return res.status(201).json({
+            status: 201,
+            message: 'Inquiry created successfully',
+            data: newInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getInquiries = async (req, res) => {
+    try {
+        const inquiries = await HelpAndSupport.find().sort({ createdAt: -1 }).populate('messages.user');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Inquiries retrieved successfully',
+            data: inquiries,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getInquiryById = async (req, res) => {
+    try {
+        const { inquiryId } = req.params;
+
+        const inquiry = await HelpAndSupport.findById(inquiryId);
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Inquiry not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Inquiry retrieved successfully',
+            data: inquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateInquiry = async (req, res) => {
+    try {
+        const { inquiryId } = req.params;
+        const { mobileNumber, email } = req.body;
+
+        const updatedInquiry = await HelpAndSupport.findByIdAndUpdate(
+            inquiryId,
+            { mobileNumber, email },
+            { new: true }
+        );
+
+        if (!updatedInquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Inquiry not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Inquiry updated successfully',
+            data: updatedInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteInquiry = async (req, res) => {
+    try {
+        const { inquiryId } = req.params;
+
+        const deletedInquiry = await HelpAndSupport.findByIdAndDelete(inquiryId);
+
+        if (!deletedInquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Inquiry not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Inquiry deleted successfully',
+            data: deletedInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.replyToInquiry = async (req, res) => {
+    try {
+        const { inquiryId } = req.params;
+        const { message } = req.body;
+
+        const inquiry = await HelpAndSupport.findByIdAndUpdate(
+            inquiryId,
+            { $push: { messages: { message, user: req.user._id } } },
+            { new: true }
+        );
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Inquiry not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Reply added successfully',
+            data: inquiry,
         });
     } catch (error) {
         console.error(error);

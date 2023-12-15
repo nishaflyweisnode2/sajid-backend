@@ -71,7 +71,16 @@ module.exports = (app) => {
     app.put('/api/v1/admin/accessories/:accessoryId', [authJwt.isAdmin], accessoryImage.single('image'), auth.updateAccessory);
     app.delete('/api/v1/admin/accessories/:accessoryId', [authJwt.isAdmin], auth.deleteAccessory);
     app.get('/api/v1/admin/accessories/category/:categoryId', [authJwt.isAdmin], auth.getAllAccessoriesByCategoryId);
-
+    app.post('/api/v1/admin/gst', [authJwt.isAdmin], auth.createGST);
+    app.get('/api/v1/admin/gst', [authJwt.isAdmin], auth.getAllGST);
+    app.get('/api/v1/admin/gst/:id', [authJwt.isAdmin], auth.getGSTById);
+    app.put('/api/v1/admin/gst/:id', [authJwt.isAdmin], auth.updateGST);
+    app.delete('/api/v1/admin/gst/:id', [authJwt.isAdmin], auth.deleteGST);
+    app.post('/api/v1/admin/inquiries', [authJwt.isAdmin], auth.createInquiry);
+    app.get('/api/v1/admin/inquiries', [authJwt.isAdmin], auth.getInquiries);
+    app.get('/api/v1/admin/inquiries/:inquiryId', [authJwt.isAdmin], auth.getInquiryById);
+    app.put('/api/v1/admin/inquiries/:inquiryId', [authJwt.isAdmin], auth.updateInquiry);
+    app.delete('/api/v1/admin/inquiries/:inquiryId', [authJwt.isAdmin], auth.deleteInquiry);
 
 
 

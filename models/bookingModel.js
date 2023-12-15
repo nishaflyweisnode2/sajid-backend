@@ -6,6 +6,10 @@ const bookingSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Bike',
         },
+        accessories: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Accessory',
+        },
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
@@ -17,6 +21,10 @@ const bookingSchema = new mongoose.Schema(
         dropOffLocation: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Location',
+        },
+        gst: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'GST',
         },
         pickupDate: {
             type: Date,
@@ -45,6 +53,9 @@ const bookingSchema = new mongoose.Schema(
             type: Number,
         },
         totalPrice: {
+            type: Number,
+        },
+        accessoriesPrice: {
             type: Number,
         },
         paymentStatus: {
@@ -116,6 +127,13 @@ const bookingSchema = new mongoose.Schema(
             type: String,
         },
         isRejectOtp: {
+            type: Boolean,
+            default: false
+        },
+        tripEndOtp: {
+            type: String,
+        },
+        isTripEndOtp: {
             type: Boolean,
             default: false
         },

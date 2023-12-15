@@ -671,7 +671,10 @@ exports.updateTripEndDetails = async (req, res) => {
             await bike.save();
         }
 
+        let otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+
         booking.tripEndTime = new Date();
+        booking.tripEndOtp = otp;
         booking.isTripCompleted = true;
         booking.status = "COMPLETED";
 
@@ -685,5 +688,75 @@ exports.updateTripEndDetails = async (req, res) => {
     }
 };
 
+exports.approveTripEndDetailsVerifyOtp = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const bookingId = req.params.bookingId;
+        const { otp } = req.body;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId);
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        const userId = booking.user;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).send({ message: "User not found" });
+        }
+
+        if (booking.tripEndOtp !== otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        const updatedBooking = await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+                isTripEndOtp: true,
+            },
+            { new: true }
+        );
+
+
+        return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updatedBooking });
+    } catch (err) {
+        console.error(err.message);
+        return res.status(500).send({ error: "Internal server error" + err.message });
+    }
+};
+
+exports.approveTripEndDetailsResendOTP = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const { id } = req.params;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+
+        const updated = await Booking.findOneAndUpdate(
+            { _id: id },
+            { tripEndOtp: otp, isTripEndOtp: false },
+            { new: true }
+        );
+
+        return res.status(200).send({ status: 200, message: "OTP resent", data: updated });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).send({ status: 500, message: "Server error" + error.message });
+    }
+};
 
 

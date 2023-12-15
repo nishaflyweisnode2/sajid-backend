@@ -11,6 +11,9 @@ const Coupon = require('../models/couponModel');
 const BikeStoreRelation = require('../models/BikeStoreRelationModel');
 const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
 const Accessory = require('../models/accessory/accessoryModel')
+const Store = require('../models/storeModel');
+const GST = require('../models/gstModel');
+const HelpAndSupport = require('../models/help&SupportModel');
 
 
 
@@ -636,6 +639,37 @@ exports.getAccessoryById = async (req, res) => {
     }
 };
 
+exports.getAllAccessoriesByBikeId = async (req, res) => {
+    try {
+        const { bikeId } = req.params;
+
+        const bike = await Bike.findById(bikeId);
+        if (!bike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+        }
+
+        const storeRelation = await BikeStoreRelation.findOne({ bike: bikeId });
+        if (!storeRelation) {
+            return res.status(404).json({ status: 404, message: 'Store relation not found for the bike', data: null });
+        }
+
+        const relatedStoreRelations = await BikeStoreRelation.find({ store: storeRelation.store, bike: storeRelation.bike });
+
+        const accessoryIds = relatedStoreRelations.flatMap(relation => relation.accessory);
+
+        const accessories = await Accessory.find({ _id: { $in: accessoryIds } }).populate('category');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Accessories retrieved successfully',
+            data: accessories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 exports.getAllAccessoriesByCategoryId = async (req, res) => {
     try {
         const categoryId = req.params.categoryId;
@@ -652,6 +686,40 @@ exports.getAllAccessoriesByCategoryId = async (req, res) => {
             message: 'Accessories retrieved successfully by category ID',
             data: accessories,
         });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getStoreDetails = async (req, res) => {
+    try {
+        const { bikeId } = req.params;
+
+        const bike = await Bike.findById(bikeId);
+        if (!bike) {
+            return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+        }
+
+        const pickupLocation = await Location.findById(bike.pickup);
+        const dropOffLocation = await Location.findById(bike.drop);
+
+        const pickupStore = await Store.find({ location: pickupLocation }).populate('location');
+        const dropOffStore = await Store.findOne({ location: dropOffLocation });
+
+        const relationPickup = await BikeStoreRelation.find({
+            bike: bike._id,
+            store: pickupStore,
+        });
+
+        const bikeDetails = {
+            bike,
+            pickupLocation,
+            pickupStore,
+            relationPickup,
+        };
+
+        return res.status(200).json({ status: 200, data: bikeDetails });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
@@ -825,7 +893,7 @@ exports.createBooking1 = async (req, res) => {
 exports.createBooking = async (req, res) => {
     try {
         const userId = req.user._id;
-        let { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, subscriptionMonths } = req.body;
+        let { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, subscriptionMonths, accessoriesId } = req.body;
 
         const currentDate = new Date();
         const requestedPickupDate = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
@@ -906,14 +974,35 @@ exports.createBooking = async (req, res) => {
                 return res.status(400).json({ status: 400, message: 'Bike is not available for the specified dates and times.', data: null });
             }
 
+            let accessoriesPrice = 0;
+            if (accessoriesId) {
+                const accessory = await Accessory.findById(accessoriesId);
+                if (accessory) {
+                    const bikeStore = await BikeStoreRelation.findOne({ bike: bikeId });
+                    const accessoryStore = await BikeStoreRelation.findOne({ accessory: accessoriesId });
+
+                    if (!bikeStore || !accessoryStore || bikeStore.store.toString() !== accessoryStore.store.toString()) {
+                        return res.status(400).json({ status: 400, message: 'Bike and accessory must be in the same store for booking.', data: null });
+                    }
+
+                    accessoriesPrice = accessory.price || 0;
+                }
+            }
+
             const rentalPrice = bikeExist.rentalPrice;
             console.log("rentalPrice", rentalPrice);
 
             const durationInDays = calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime);
             console.log("durationInDays", durationInDays);
 
-            const basePrice = rentalPrice * durationInDays;
-            const taxAmount = (3 / 100) * basePrice;
+            let basePrice = rentalPrice * durationInDays;
+            const gstPercentage = await GST.findOne({ status: false });
+            if (!gstPercentage) {
+                return res.status(400).json({ status: 400, message: 'GST not found.', data: null });
+            }
+            basePrice = basePrice + accessoriesPrice
+            const taxAmount = (gstPercentage.rate / 100) * basePrice;
+
             const totalPrice = basePrice + taxAmount;
 
             console.log("totalPrice", totalPrice);
@@ -925,6 +1014,8 @@ exports.createBooking = async (req, res) => {
             const roundedBasePrice = Math.round(basePrice);
             const roundedTaxAmount = Math.round(taxAmount);
             const roundedTotalPrice = Math.round(totalPrice);
+
+            const totalPriceWithAccessories = roundedTotalPrice + accessoriesPrice + bikeExist.depositMoney;
 
             const newBooking = await Booking.create({
                 user: user._id,
@@ -938,10 +1029,13 @@ exports.createBooking = async (req, res) => {
                 status: "PENDING",
                 price: roundedBasePrice,
                 taxAmount: roundedTaxAmount,
-                totalPrice: roundedTotalPrice,
+                totalPrice: totalPriceWithAccessories,
                 depositedMoney: bikeExist.depositMoney,
                 isSubscription: subscriptionMonths ? true : false,
                 subscriptionMonths,
+                accessories: accessoriesId,
+                accessoriesPrice,
+                gst: gstPercentage._id
             });
 
             return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
@@ -1237,6 +1331,75 @@ exports.cancelBooking = async (req, res) => {
     }
 };
 
+exports.getInquiries = async (req, res) => {
+    try {
+        const inquiries = await HelpAndSupport.find().sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Inquiries retrieved successfully',
+            data: inquiries,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getInquiryById = async (req, res) => {
+    try {
+        const { inquiryId } = req.params;
+
+        const inquiry = await HelpAndSupport.findById(inquiryId);
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Inquiry not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Inquiry retrieved successfully',
+            data: inquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.replyToInquiry = async (req, res) => {
+    try {
+        const { inquiryId } = req.params;
+        const { message } = req.body;
+
+        const inquiry = await HelpAndSupport.findByIdAndUpdate(
+            inquiryId,
+            { $push: { messages: { message, user: req.user._id } } },
+            { new: true }
+        );
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Inquiry not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Reply added successfully',
+            data: inquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
 
 
 
