@@ -8,17 +8,15 @@ const addressSchema = new mongoose.Schema({
     },
     name: {
         type: String,
-        required: true,
     },
     coordinates: {
         type: [Number],
         index: '2dsphere',
-        required: true,
     },
     type: {
         type: String,
         enum: ['Home', 'Work'],
-        required: true,
+        default: "Home"
     },
     address: {
         houseNo: String,

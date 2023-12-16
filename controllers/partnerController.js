@@ -12,6 +12,8 @@ const BikeStoreRelation = require('../models/BikeStoreRelationModel');
 const Coupon = require('../models/couponModel');
 const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
 const Accessory = require('../models/accessory/accessoryModel')
+const Order = require('../models/orderModel')
+
 
 
 exports.registration = async (req, res) => {
@@ -759,4 +761,133 @@ exports.approveTripEndDetailsResendOTP = async (req, res) => {
     }
 };
 
+exports.getAllOrdersForPartner = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
 
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+        console.log("isPartnerAssociated", isPartnerAssociated);
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with any store.', data: null });
+        }
+
+        const bikeRelations = await BikeStoreRelation.find({ partner: partnerId, store: isPartnerAssociated }).populate('accessory');
+        console.log("bikeRelations", bikeRelations);
+
+        const partnerAccessories = bikeRelations.map(relation => relation.accessory);
+        console.log("partnerAccessories", partnerAccessories);
+
+        const orders = await Order.find({ 'items.accessory': { $in: partnerAccessories.map(accessory => accessory._id) } })
+            .populate('user')
+            .populate('items.accessory')
+            .populate('shippingAddress');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Orders retrieved successfully for the partner',
+            data: orders,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getOrderByIdForPartner = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const orderId = req.params.orderId;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const bikeRelations = await BikeStoreRelation.find({ partner: partnerId, store: isPartnerAssociated }).populate('accessory');
+        const partnerAccessories = bikeRelations.map(relation => relation.accessory);
+
+        const order = await Order.findById(orderId).populate('items.accessory').populate('shippingAddress').populate('user');
+
+        if (!order) {
+            return res.status(404).json({ status: 404, message: 'Order not found', data: null });
+        }
+
+        const isOrderAssociatedWithPartner = order.items.every(item => partnerAccessories.some(accessory => accessory._id.equals(item.accessory._id)));
+
+        if (!isOrderAssociatedWithPartner) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Order is not associated with the partner.', data: null });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order retrieved successfully for the partner',
+            data: order,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { status } = req.body;
+
+        const updatedOrder = await Order.findByIdAndUpdate(
+            orderId,
+            { status },
+            { new: true }
+        ).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!updatedOrder) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order updated successfully',
+            data: updatedOrder,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.deleteOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const deletedOrder = await Order.findByIdAndDelete(orderId).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!deletedOrder) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order deleted successfully',
+            data: deletedOrder,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};

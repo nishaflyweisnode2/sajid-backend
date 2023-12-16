@@ -14,6 +14,13 @@ const Accessory = require('../models/accessory/accessoryModel')
 const Store = require('../models/storeModel');
 const GST = require('../models/gstModel');
 const HelpAndSupport = require('../models/help&SupportModel');
+const Notification = require('../models/notificationModel');
+const TermAndCondition = require('../models/term&conditionModel');
+const CancelationPolicy = require('../models/cancelationPolicyModel');
+const BussinesInquary = require('../models/bussinesInquaryModel');
+const Story = require('../models/sotriesModel');
+const Order = require('../models/orderModel');
+
 
 
 
@@ -41,6 +48,14 @@ exports.loginWithPhone = async (req, res) => {
             let accountVerification = false;
             const newUser = await User.create({ mobileNumber: mobileNumber, otp, otpExpiration, accountVerification, userType: "USER" });
             let obj = { id: newUser._id, otp: newUser.otp, mobileNumber: newUser.mobileNumber }
+            const welcomeMessage = `Welcome, ${newUser.mobileNumber}! Thank you for registering.`;
+            const welcomeNotification = new Notification({
+                recipient: newUser._id,
+                content: welcomeMessage,
+                type: 'welcome',
+            });
+            await welcomeNotification.save();
+
             return res.status(200).send({ status: 200, message: "logged in successfully", data: obj });
         } else {
             const userObj = {};
@@ -353,6 +368,78 @@ exports.getUserProfileById = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.deleteAccount = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+        const otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false, });
+
+        user.otp = otp
+        const updatedUser = await user.save();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Account deleted successfully',
+            data: updatedUser,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.verifyOtpForDelete = async (req, res) => {
+    try {
+        const { otp } = req.body;
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).send({ message: "user not found" });
+        }
+
+        if (user.otp !== otp) {
+            return res.status(400).json({ message: "Invalid" });
+        }
+        await User.findByIdAndDelete(req.params.id);
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Account deleted successfully',
+            data: null,
+        });
+    } catch (err) {
+        console.log(err.message);
+        return res.status(500).send({ error: "internal server error" + err.message });
+    }
+};
+
+exports.resendOTPForDelete = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const user = await User.findOne({ _id: id, userType: "USER" });
+        if (!user) {
+            return res.status(404).send({ status: 404, message: "User not found" });
+        }
+        const otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false, });
+        const updated = await User.findOneAndUpdate({ _id: user._id }, { otp, }, { new: true });
+        let obj = {
+            otp: updated.otp,
+            _id: updated._id
+        }
+        return res.status(200).send({ status: 200, message: "OTP resent", data: obj });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).send({ status: 500, message: "Server error" + error.message });
     }
 };
 
@@ -1038,6 +1125,15 @@ exports.createBooking = async (req, res) => {
                 gst: gstPercentage._id
             });
 
+            const welcomeMessage = `Welcome, ${user.userName}! Thank you for Booking, your Booking details ${newBooking}.`;
+            const welcomeNotification = new Notification({
+                recipient: user._id,
+                content: welcomeMessage,
+                type: 'Booking',
+            });
+            await welcomeNotification.save();
+
+
             return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
 
         }
@@ -1101,7 +1197,48 @@ exports.getBookingsByUser = async (req, res) => {
     try {
         const userId = req.user._id;
 
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
         const bookings = await Booking.find({ user: userId }).populate('bike user pickupLocation dropOffLocation');
+
+        // .populate({
+        //     path: 'bike',
+        //     select: 'modelName rentalPrice',
+        // })
+        // .populate({
+        //     path: 'user',
+        //     select: 'username email',
+        // })
+        // .populate({
+        //     path: 'pickupLocation dropOffLocation',
+        //     select: 'locationName address',
+        // });
+
+        return res.status(200).json({ status: 200, message: 'Bookings retrieved successfully', data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBookingsById = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const bookingId = req.params.bookingId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bookings = await Booking.find({ _id: bookingId, user: userId }).populate('bike user pickupLocation dropOffLocation');
+
+        if (!bookings) {
+            return res.status(404).json({ status: 404, message: 'Bookings not found', data: null });
+        }
 
         // .populate({
         //     path: 'bike',
@@ -1331,6 +1468,99 @@ exports.cancelBooking = async (req, res) => {
     }
 };
 
+exports.getCancelBookingsByUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bookings = await Booking.find({ user: userId, status: "CANCELLED" }).populate('bike user pickupLocation dropOffLocation');
+
+        // .populate({
+        //     path: 'bike',
+        //     select: 'modelName rentalPrice',
+        // })
+        // .populate({
+        //     path: 'user',
+        //     select: 'username email',
+        // })
+        // .populate({
+        //     path: 'pickupLocation dropOffLocation',
+        //     select: 'locationName address',
+        // });
+
+        return res.status(200).json({ status: 200, message: 'Canceled Bookings retrieved successfully', data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getCompletedBookingsByUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bookings = await Booking.find({ user: userId, status: "COMPLETED" }).populate('bike user pickupLocation dropOffLocation');
+
+        // .populate({
+        //     path: 'bike',
+        //     select: 'modelName rentalPrice',
+        // })
+        // .populate({
+        //     path: 'user',
+        //     select: 'username email',
+        // })
+        // .populate({
+        //     path: 'pickupLocation dropOffLocation',
+        //     select: 'locationName address',
+        // });
+
+        return res.status(200).json({ status: 200, message: 'Completed Bookings retrieved successfully', data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getUpcomingBookingsByUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bookings = await Booking.find({ user: userId, pickupDate: { $gte: new Date() } }).populate('bike user pickupLocation dropOffLocation');
+
+        // .populate({
+        //     path: 'bike',
+        //     select: 'modelName rentalPrice',
+        // })
+        // .populate({
+        //     path: 'user',
+        //     select: 'username email',
+        // })
+        // .populate({
+        //     path: 'pickupLocation dropOffLocation',
+        //     select: 'locationName address',
+        // });
+
+        return res.status(200).json({ status: 200, message: 'Bookings retrieved successfully', data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 exports.getInquiries = async (req, res) => {
     try {
         const inquiries = await HelpAndSupport.find().sort({ createdAt: -1 });
@@ -1400,6 +1630,479 @@ exports.replyToInquiry = async (req, res) => {
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
+
+exports.markNotificationAsRead = async (req, res) => {
+    try {
+        const notificationId = req.params.notificationId;
+
+        const notification = await Notification.findByIdAndUpdate(
+            notificationId,
+            { status: 'read' },
+            { new: true }
+        );
+
+        if (!notification) {
+            return res.status(404).json({ status: 404, message: 'Notification not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Notification marked as read', data: notification });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error marking notification as read', error: error.message });
+    }
+};
+
+exports.getNotificationsForUser = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const notifications = await Notification.find({ recipient: userId });
+
+        return res.status(200).json({ status: 200, message: 'Notifications retrieved successfully', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error retrieving notifications', error: error.message });
+    }
+};
+
+exports.getAllNotificationsForUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+        const notifications = await Notification.find({ recipient: userId });
+
+        return res.status(200).json({ status: 200, message: 'Notifications retrieved successfully', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error retrieving notifications', error: error.message });
+    }
+};
+
+exports.getAllTermAndCondition = async (req, res) => {
+    try {
+        const termAndCondition = await TermAndCondition.find();
+
+        if (!termAndCondition) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: "Sucessfully", data: termAndCondition });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getTermAndConditionById = async (req, res) => {
+    try {
+        const termAndConditionId = req.params.id;
+        const termAndCondition = await TermAndCondition.findById(termAndConditionId);
+
+        if (!termAndCondition) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Sucessfully', data: termAndCondition });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getAllCancelationPolicy = async (req, res) => {
+    try {
+        const cancelationPolicy = await CancelationPolicy.find();
+
+        if (!cancelationPolicy) {
+            return res.status(404).json({ status: 404, message: 'Cancelation and Policy not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: "Sucessfully", data: cancelationPolicy });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getCancelationPolicyById = async (req, res) => {
+    try {
+        const cancelationPolicyId = req.params.id;
+        const cancelationPolicy = await CancelationPolicy.findById(cancelationPolicyId);
+
+        if (!cancelationPolicy) {
+            return res.status(404).json({ status: 404, message: 'Cancelation and Policy not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Sucessfully', data: cancelationPolicy });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.createBussinesInquary = async (req, res) => {
+    try {
+        const { subjectId, message } = req.body;
+
+        const newInquiry = await BussinesInquary.create({
+            subjectId,
+            messages: [{ message, user: req.user._id }],
+        });
+
+        return res.status(201).json({
+            status: 201,
+            message: 'Bussines Inquary created successfully',
+            data: newInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBussinesInquary = async (req, res) => {
+    try {
+        const inquiries = await BussinesInquary.find({ "messages.user": req.user._id }).sort({ createdAt: -1 }).populate('messages.user', 'subjectId');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary retrieved successfully',
+            data: inquiries,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBussinesInquaryById = async (req, res) => {
+    try {
+        const { bussinesInquaryId } = req.params;
+
+        const inquiry = await BussinesInquary.findById(bussinesInquaryId).populate('messages.user', 'subjectId');
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Bussines Inquary not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary retrieved successfully',
+            data: inquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateBussinesInquary = async (req, res) => {
+    try {
+        const { bussinesInquaryId } = req.params;
+        const { subjectId, message } = req.body;
+
+        const updatedInquiry = await BussinesInquary.findByIdAndUpdate(
+            bussinesInquaryId,
+            { subjectId, messages: { message, user: req.user._id } },
+            { new: true }
+        );
+
+        if (!updatedInquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Bussines Inquary not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary updated successfully',
+            data: updatedInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteBussinesInquary = async (req, res) => {
+    try {
+        const { bussinesInquaryId } = req.params;
+
+        const deletedInquiry = await BussinesInquary.findByIdAndDelete(bussinesInquaryId);
+
+        if (!deletedInquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Bussines Inquary not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary deleted successfully',
+            data: deletedInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createStory = async (req, res) => {
+    try {
+        const { name, text, status } = req.body;
+
+        let images = [];
+        if (req.files) {
+            for (let j = 0; j < req.files.length; j++) {
+                let obj = {
+                    img: req.files[j].path,
+                };
+                images.push(obj);
+            }
+        }
+
+        const newStory = await Story.create({
+            name,
+            images,
+            text,
+            status,
+        });
+
+        return res.status(201).json({
+            status: 201,
+            message: 'Story created successfully',
+            data: newStory,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllStories = async (req, res) => {
+    try {
+        const stories = await Story.find({
+            isAdminApproved: true
+        }).sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Stories retrieved successfully',
+            data: stories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getStoryById = async (req, res) => {
+    try {
+        const { storyId } = req.params;
+
+        const story = await Story.findById({ _id: storyId, isAdminApproved: true });
+
+        if (!story) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Story not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Story retrieved successfully',
+            data: story,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createOrder = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const { items, shippingAddress, paymentMethod } = req.body;
+
+        const address = await Address.findById({ _id: shippingAddress, user: userId });
+        if (!address) {
+            return res.status(404).json({ status: 404, message: 'Address not found for this User', data: null });
+        }
+
+        let totalPrice = 0;
+        for (const item of items) {
+            const accessory = await Accessory.findById(item.accessory);
+            if (!accessory) {
+                return res.status(404).json({ status: 404, message: `Accessory not found for ID: ${item.accessory}`, data: null });
+            }
+            item.price = accessory.price || 0;
+            totalPrice += item.price * item.quantity;
+        }
+
+        const newOrder = await Order.create({
+            user: user._id,
+            items,
+            totalPrice,
+            shippingAddress,
+            paymentMethod,
+        });
+
+        return res.status(201).json({
+            status: 201,
+            message: 'Order created successfully',
+            data: newOrder,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.getAllOrders = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const orders = await Order.find({ user: userId }).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Orders retrieved successfully',
+            data: orders,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.getOrderById = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const order = await Order.findById(orderId).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!order) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order retrieved successfully',
+            data: order,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.updateOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { paymentStatus } = req.body;
+
+        const updatedOrder = await Order.findByIdAndUpdate(
+            orderId,
+            { paymentStatus },
+            { new: true }
+        ).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!updatedOrder) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order updated successfully',
+            data: updatedOrder,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.deleteOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const deletedOrder = await Order.findByIdAndDelete(orderId).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!deletedOrder) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order deleted successfully',
+            data: deletedOrder,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+
 
 
 

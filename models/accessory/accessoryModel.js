@@ -5,7 +5,7 @@ const accessorySchema = new mongoose.Schema({
         type: String,
     },
     description: {
-        type: String,
+        type: Array,
     },
     category: {
         type: mongoose.Schema.Types.ObjectId,

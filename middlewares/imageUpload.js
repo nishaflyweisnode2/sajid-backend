@@ -23,8 +23,10 @@ const storage6 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folde
 const accessoryCategoryImage = multer({ storage: storage6 });
 const storage7 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/accessoryImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
 const accessoryImage = multer({ storage: storage7 });
+const storage8 = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: "Sajid-Bike-Backend/storiesImage", allowed_formats: ["jpg", "jpeg", "png", "PNG", "xlsx", "xls", "pdf", "PDF", "jiff", "JIFF", "jfif", "JFIF", "mp4", "MP4", "webm", "WEBM"], }, });
+const storiesImage = multer({ storage: storage8 });
 
 
 
 
-module.exports = { profileImage, uploadIdFrontImage, cityImage, storeImage, bikeImage, bikeApprovedImage, accessoryCategoryImage, accessoryImage }
+module.exports = { profileImage, uploadIdFrontImage, cityImage, storeImage, bikeImage, bikeApprovedImage, accessoryCategoryImage, accessoryImage, storiesImage }

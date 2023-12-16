@@ -14,6 +14,13 @@ const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
 const Accessory = require('../models/accessory/accessoryModel')
 const GST = require('../models/gstModel');
 const HelpAndSupport = require('../models/help&SupportModel');
+const Notification = require('../models/notificationModel');
+const TermAndCondition = require('../models/term&conditionModel');
+const CancelationPolicy = require('../models/cancelationPolicyModel');
+const SubjectsCategory = require('../models/subjectModel');
+const BussinesInquary = require('../models/bussinesInquaryModel');
+const Story = require('../models/sotriesModel');
+const Order = require('../models/orderModel')
 
 
 
@@ -1616,21 +1623,400 @@ exports.deleteInquiry = async (req, res) => {
     }
 };
 
-exports.replyToInquiry = async (req, res) => {
+exports.createNotification = async (req, res) => {
     try {
-        const { inquiryId } = req.params;
-        const { message } = req.body;
+        const { recipient, content } = req.body;
 
-        const inquiry = await HelpAndSupport.findByIdAndUpdate(
-            inquiryId,
-            { $push: { messages: { message, user: req.user._id } } },
+        const notification = new Notification({ recipient, content });
+        await notification.save();
+
+        return res.status(201).json({ status: 201, message: 'Notification created successfully', data: notification });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error creating notification', error: error.message });
+    }
+};
+
+exports.markNotificationAsRead = async (req, res) => {
+    try {
+        const notificationId = req.params.notificationId;
+
+        const notification = await Notification.findByIdAndUpdate(
+            notificationId,
+            { status: 'read' },
+            { new: true }
+        );
+
+        if (!notification) {
+            return res.status(404).json({ status: 404, message: 'Notification not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Notification marked as read', data: notification });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error marking notification as read', error: error.message });
+    }
+};
+
+exports.getNotificationsForUser = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const notifications = await Notification.find({ recipient: userId });
+
+        return res.status(200).json({ status: 200, message: 'Notifications retrieved successfully', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error retrieving notifications', error: error.message });
+    }
+};
+
+exports.getAllNotificationsForUser = async (req, res) => {
+    try {
+        const notifications = await Notification.find();
+
+        return res.status(200).json({ status: 200, message: 'Notifications retrieved successfully', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error retrieving notifications', error: error.message });
+    }
+};
+
+exports.createTermAndCondition = async (req, res) => {
+    try {
+        const { content } = req.body;
+
+        const termAndCondition = new TermAndCondition({ content });
+        await termAndCondition.save();
+
+        return res.status(201).json({ status: 201, message: 'Terms and Conditions created successfully', data: termAndCondition });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getAllTermAndCondition = async (req, res) => {
+    try {
+        const termAndCondition = await TermAndCondition.find();
+
+        if (!termAndCondition) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: "Sucessfully", data: termAndCondition });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getTermAndConditionById = async (req, res) => {
+    try {
+        const termAndConditionId = req.params.id;
+        const termAndCondition = await TermAndCondition.findById(termAndConditionId);
+
+        if (!termAndCondition) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Sucessfully', data: termAndCondition });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.updateTermAndConditionById = async (req, res) => {
+    try {
+        const termAndConditionId = req.params.id;
+        const { content } = req.body;
+
+        const updatedTermAndCondition = await TermAndCondition.findByIdAndUpdate(
+            termAndConditionId,
+            { content },
+            { new: true }
+        );
+
+        if (!updatedTermAndCondition) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Terms and Conditions updated successfully', data: updatedTermAndCondition });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.deleteTermAndConditionById = async (req, res) => {
+    try {
+        const termAndConditionId = req.params.id;
+        const deletedTermAndCondition = await TermAndCondition.findByIdAndDelete(termAndConditionId);
+
+        if (!deletedTermAndCondition) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Terms and Conditions deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.createCancelationPolicy = async (req, res) => {
+    try {
+        const { content } = req.body;
+
+        const cancelationPolicy = new CancelationPolicy({ content });
+        await cancelationPolicy.save();
+
+        return res.status(201).json({ status: 201, message: 'Cancelation and Policy created successfully', data: cancelationPolicy });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getAllCancelationPolicy = async (req, res) => {
+    try {
+        const cancelationPolicy = await CancelationPolicy.find();
+
+        if (!cancelationPolicy) {
+            return res.status(404).json({ status: 404, message: 'Cancelation and Policy not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: "Sucessfully", data: cancelationPolicy });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.getCancelationPolicyById = async (req, res) => {
+    try {
+        const cancelationPolicyId = req.params.id;
+        const cancelationPolicy = await CancelationPolicy.findById(cancelationPolicyId);
+
+        if (!cancelationPolicy) {
+            return res.status(404).json({ status: 404, message: 'Cancelation and Policy not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Sucessfully', data: cancelationPolicy });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.updateCancelationPolicyById = async (req, res) => {
+    try {
+        const cancelationPolicyId = req.params.id;
+        const { content } = req.body;
+
+        const updatedCancelationPolicy = await CancelationPolicy.findByIdAndUpdate(
+            cancelationPolicyId,
+            { content },
+            { new: true }
+        );
+
+        if (!updatedCancelationPolicy) {
+            return res.status(404).json({ status: 404, message: 'Terms and Conditions not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'cancelation and Policy updated successfully', data: updatedCancelationPolicy });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.deleteCancelationPolicyById = async (req, res) => {
+    try {
+        const cancelationPolicyId = req.params.id;
+        const deletedCancelationPolicy = await CancelationPolicy.findByIdAndDelete(cancelationPolicyId);
+
+        if (!deletedCancelationPolicy) {
+            return res.status(404).json({ status: 404, message: 'Cancelation and Policy not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Cancelation and Policy deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal server error', details: error.message });
+    }
+};
+
+exports.createSubjectsCategory = async (req, res) => {
+    try {
+        const { name, status } = req.body;
+
+        const existingCategory = await SubjectsCategory.findOne({ name });
+        if (existingCategory) {
+            return res.status(400).json({ status: 400, message: 'Accessory category with this name already exists', data: null });
+        }
+
+        const newCategory = await SubjectsCategory.create({ name, status });
+
+        return res.status(201).json({ status: 201, message: 'Subjects category created successfully', data: newCategory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllSubjectsCategories = async (req, res) => {
+    try {
+        const categories = await SubjectsCategory.find();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Subjects categories retrieved successfully',
+            data: categories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getSubjectsCategoryById = async (req, res) => {
+    try {
+        const subjectId = req.params.subjectId;
+        const category = await SubjectsCategory.findById(subjectId);
+
+        if (!category) {
+            return res.status(404).json({ status: 404, message: 'Subjects Category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Subjects Category retrieved successfully', data: category });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateSubjectsCategory = async (req, res) => {
+    try {
+        const subjectId = req.params.subjectId;
+        const { name, status } = req.body;
+
+        const updatedCategory = await SubjectsCategory.findByIdAndUpdate(
+            subjectId,
+            { name, status, },
+            { new: true }
+        );
+
+        if (!updatedCategory) {
+            return res.status(404).json({ status: 404, message: 'Subjects Category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Subjects Category updated successfully', data: updatedCategory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteSubjectsCategory = async (req, res) => {
+    try {
+        const subjectId = req.params.subjectId;
+
+        const deletedCategory = await SubjectsCategory.findByIdAndDelete(subjectId);
+
+        if (!deletedCategory) {
+            return res.status(404).json({ status: 404, message: 'Subjects Category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Subjects Category deleted successfully', data: deletedCategory });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBussinesInquary = async (req, res) => {
+    try {
+        const inquiries = await BussinesInquary.find().sort({ createdAt: -1 }).populate('messages.user', 'subjectId');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary retrieved successfully',
+            data: inquiries,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBussinesInquaryById = async (req, res) => {
+    try {
+        const { bussinesInquaryId } = req.params;
+
+        const inquiry = await BussinesInquary.findById(bussinesInquaryId).populate('messages.user', 'subjectId');
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Bussines Inquary not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary retrieved successfully',
+            data: inquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteBussinesInquary = async (req, res) => {
+    try {
+        const { bussinesInquaryId } = req.params;
+
+        const deletedInquiry = await BussinesInquary.findByIdAndDelete(bussinesInquaryId);
+
+        if (!deletedInquiry) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Bussines Inquary not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Bussines Inquary deleted successfully',
+            data: deletedInquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.replyBussinesInquary = async (req, res) => {
+    try {
+        const { bussinesInquaryId } = req.params;
+        const { reply } = req.body;
+
+        const inquiry = await BussinesInquary.findByIdAndUpdate(
+            bussinesInquaryId,
+            { $push: { 'messages': { reply, user: req.user._id } } },
             { new: true }
         );
 
         if (!inquiry) {
             return res.status(404).json({
                 status: 404,
-                message: 'Inquiry not found',
+                message: 'Bussines Inquary not found',
                 data: null,
             });
         }
@@ -1646,7 +2032,231 @@ exports.replyToInquiry = async (req, res) => {
     }
 };
 
+exports.getAllPendingStories = async (req, res) => {
+    try {
+        const stories = await Story.find({ isAdminApproved: false }).sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Stories retrieved successfully',
+            data: stories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllApprovedStories = async (req, res) => {
+    try {
+        const stories = await Story.find({ isAdminApproved: true }).sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Stories retrieved successfully',
+            data: stories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getStoryById = async (req, res) => {
+    try {
+        const { storyId } = req.params;
+
+        const story = await Story.findById(storyId);
+
+        if (!story) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Story not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Story retrieved successfully',
+            data: story,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.approvedRejectStory = async (req, res) => {
+    try {
+        const { storyId } = req.params;
+        const { status, isAdminApproved } = req.body;
 
 
+        const updatedStory = await Story.findByIdAndUpdate(
+            storyId,
+            { status, isAdminApproved },
+            { new: true }
+        );
 
+        if (!updatedStory) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Story not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Story updated successfully',
+            data: updatedStory,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.updateStory = async (req, res) => {
+    try {
+        const { storyId } = req.params;
+        const { name, text, status } = req.body;
+
+        let images = [];
+        if (req.files && req.files.length > 0) {
+            for (let j = 0; j < req.files.length; j++) {
+                let obj = {
+                    img: req.files[j].path,
+                };
+                images.push(obj);
+            }
+        }
+
+        const updatedStory = await Story.findByIdAndUpdate(
+            storyId,
+            { name, images, text, status },
+            { new: true }
+        );
+
+        if (!updatedStory) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Story not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Story updated successfully',
+            data: updatedStory,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.deleteStory = async (req, res) => {
+    try {
+        const { storyId } = req.params;
+
+        const deletedStory = await Story.findByIdAndDelete(storyId);
+
+        if (!deletedStory) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Story not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Story deleted successfully',
+            data: deletedStory,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllOrders = async (req, res) => {
+    try {
+        const orders = await Order.find().populate('user').populate('items.accessory').populate('shippingAddress');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Orders retrieved successfully',
+            data: orders,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.getOrderById = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const order = await Order.findById(orderId).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!order) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order retrieved successfully',
+            data: order,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
+exports.deleteOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const deletedOrder = await Order.findByIdAndDelete(orderId).populate('user').populate('items.accessory').populate('shippingAddress');
+
+        if (!deletedOrder) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Order not found',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Order deleted successfully',
+            data: deletedOrder,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
 

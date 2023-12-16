@@ -5,7 +5,7 @@ const router = express()
 
 const authJwt = require("../middlewares/auth");
 
-const { profileImage } = require('../middlewares/imageUpload');
+const { profileImage, storiesImage } = require('../middlewares/imageUpload');
 
 
 
@@ -24,6 +24,9 @@ module.exports = (app) => {
     app.put("/api/v1/user/edit-profile", [authJwt.verifyToken], auth.editProfile);
     app.get("/api/v1/user/profile", [authJwt.verifyToken], auth.getUserProfile);
     app.get("/api/v1/user/profile/:userId", [authJwt.verifyToken], auth.getUserProfileById);
+    app.delete('/api/v1/user/delete-account', [authJwt.verifyToken], auth.deleteAccount);
+    app.post("/api/v1/user/delete-account/:id", [authJwt.verifyToken], auth.verifyOtpForDelete);
+    app.post("/api/v1/user/resendOtp/delete-account/:id", [authJwt.verifyToken], auth.resendOTPForDelete);
     app.get("/api/v1/user/city/cities", [authJwt.verifyToken], auth.getAllCities);
     app.get("/api/v1/user/city/cities/:id", [authJwt.verifyToken], auth.getCityById);
     app.post('/api/v1/user/address/create', [authJwt.verifyToken], auth.createAddress);
@@ -46,6 +49,10 @@ module.exports = (app) => {
     app.get('/api/v1/user/bike/availability', [authJwt.verifyToken], auth.checkBikeAvailability);
     app.post("/api/v1/user/booking/create", [authJwt.verifyToken], auth.createBooking);
     app.get('/api/v1/user/bookings/user', [authJwt.verifyToken], auth.getBookingsByUser);
+    app.get('/api/v1/user/bookings/user/:bookingId', [authJwt.verifyToken], auth.getBookingsById);
+    app.get('/api/v1/user/bookings/completed/user', [authJwt.verifyToken], auth.getCompletedBookingsByUser);
+    app.get('/api/v1/user/bookings/cancel/user', [authJwt.verifyToken], auth.getCancelBookingsByUser);
+    app.get('/api/v1/user/bookings/upcoming/user', [authJwt.verifyToken], auth.getUpcomingBookingsByUser);
     app.put('/api/v1/user/bookings/:id', [authJwt.verifyToken], auth.updateBookingById);
     app.post('/api/v1/user/coupon/apply-coupon', [authJwt.verifyToken], auth.applyCouponToBooking);
     app.post('/api/v1/user/coupon/remove-coupon', [authJwt.verifyToken], auth.removeCouponFromBooking);
@@ -55,6 +62,25 @@ module.exports = (app) => {
     app.get('/api/v1/user/inquiries', [authJwt.verifyToken], auth.getInquiries);
     app.get('/api/v1/user/inquiries/:inquiryId', [authJwt.verifyToken], auth.getInquiryById);
     app.put('/api/v1/user/inquiries/:inquiryId', [authJwt.verifyToken], auth.replyToInquiry);
-
+    app.put('/api/v1/user/notifications/:notificationId', [authJwt.verifyToken], auth.markNotificationAsRead);
+    app.get('/api/v1/user/notifications/user/:userId', [authJwt.verifyToken], auth.getNotificationsForUser);
+    app.get('/api/v1/user/notifications/user', [authJwt.verifyToken], auth.getAllNotificationsForUser);
+    app.get('/api/v1/user/terms-and-conditions', [authJwt.verifyToken], auth.getAllTermAndCondition);
+    app.get('/api/v1/user/terms-and-conditions/:id', [authJwt.verifyToken], auth.getTermAndConditionById);
+    app.get('/api/v1/user/cancelation-policy', [authJwt.verifyToken], auth.getAllCancelationPolicy);
+    app.get('/api/v1/user/cancelation-policy/:id', [authJwt.verifyToken], auth.getCancelationPolicyById);
+    app.post('/api/v1/user/bussines/Inquary', [authJwt.verifyToken], auth.createBussinesInquary);
+    app.get('/api/v1/user/bussinesInquary', [authJwt.verifyToken], auth.getBussinesInquary);
+    app.get('/api/v1/user/bussinesInquary/:bussinesInquaryId', [authJwt.verifyToken], auth.getBussinesInquaryById);
+    app.put('/api/v1/user/bussinesInquary/:bussinesInquaryId', [authJwt.verifyToken], auth.updateBussinesInquary);
+    app.delete('/api/v1/user/bussinesInquary/:bussinesInquaryId', [authJwt.verifyToken], auth.deleteBussinesInquary);
+    app.post('/api/v1/user/stories/1', [authJwt.verifyToken], storiesImage.array('image'), auth.createStory);
+    app.get('/api/v1/user/stories', [authJwt.verifyToken], auth.getAllStories);
+    app.get('/api/v1/user/stories/:storyId', [authJwt.verifyToken], auth.getStoryById);
+    app.post('/api/v1/user/accessories/order', [authJwt.verifyToken], auth.createOrder);
+    app.get('/api/v1/user/order', [authJwt.verifyToken], auth.getAllOrders);
+    app.get('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.getOrderById);
+    app.put('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.updateOrder);
+    app.delete('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.deleteOrder);
 
 }
