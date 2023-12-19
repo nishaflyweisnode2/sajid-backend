@@ -113,6 +113,16 @@ module.exports = (app) => {
     app.get('/api/v1/admin/order', [authJwt.isAdmin], auth.getAllOrders);
     app.get('/api/v1/admin/order/:orderId', [authJwt.isAdmin], auth.getOrderById);
     app.delete('/api/v1/admin/order/:orderId', [authJwt.isAdmin], auth.deleteOrder);
+    app.post('/api/v1/admin/refund-charges', [authJwt.isAdmin], auth.createRefundCharge);
+    app.get('/api/v1/admin/refund-charges', [authJwt.isAdmin], auth.getAllRefundCharges);
+    app.get('/api/v1/admin/refund-charges/:id', [authJwt.isAdmin], auth.getRefundChargeById);
+    app.put('/api/v1/admin/refund-charges/:id', [authJwt.isAdmin], auth.updateRefundChargeById);
+    app.delete('/api/v1/admin/refund-charges/:id', [authJwt.isAdmin], auth.deleteRefundChargeById);
+    app.put('/api/v1/admin/bookings/updatePaymentStatus/:bookingId', [authJwt.isAdmin], auth.updateRefundPaymentStatus);
+    app.get('/api/v1/admin/booking/:bookingId/refund', [authJwt.isAdmin], auth.getRefundStatusAndAmount);
+
+
+
 
 
 }

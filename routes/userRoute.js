@@ -59,6 +59,7 @@ module.exports = (app) => {
     app.put('/api/v1/user/bookings/updatePaymentStatus/:bookingId', [authJwt.verifyToken], auth.updatePaymentStatus);
     app.post('/api/v1/user/bookings/:bookingId/extend', [authJwt.verifyToken], auth.extendBooking);
     app.put('/api/v1/user/bookings/:bookingId/cancel', [authJwt.verifyToken], auth.cancelBooking);
+    app.get('/api/v1/user/booking/:bookingId/refund', [authJwt.verifyToken], auth.getRefundStatusAndAmount);
     app.get('/api/v1/user/inquiries', [authJwt.verifyToken], auth.getInquiries);
     app.get('/api/v1/user/inquiries/:inquiryId', [authJwt.verifyToken], auth.getInquiryById);
     app.put('/api/v1/user/inquiries/:inquiryId', [authJwt.verifyToken], auth.replyToInquiry);

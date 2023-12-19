@@ -63,6 +63,9 @@ const bookingSchema = new mongoose.Schema(
             enum: ['PENDING', 'FAILED', 'PAID'],
             default: 'PENDING',
         },
+        referenceId: {
+            type: String,
+        },
         isTimeExtended: {
             type: Boolean,
             default: false,
@@ -145,6 +148,15 @@ const bookingSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        refundPreference: {
+            type: String,
+            enum: ['UPI', 'WALLET', 'OTHER'],
+            default: 'UPI',
+        },
+        upiId: {
+            type: String,
+        },
+
     },
     { timestamps: true }
 );

@@ -20,6 +20,8 @@ const CancelationPolicy = require('../models/cancelationPolicyModel');
 const BussinesInquary = require('../models/bussinesInquaryModel');
 const Story = require('../models/sotriesModel');
 const Order = require('../models/orderModel');
+const RefundCharge = require('../models/refundChargeModel');
+const Refund = require('../models/refundModel');
 
 
 
@@ -1333,7 +1335,7 @@ exports.removeCouponFromBooking = async (req, res) => {
 exports.updatePaymentStatus = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
-        const { paymentStatus } = req.body;
+        const { paymentStatus, referenceId } = req.body;
 
         const updatedBooking = await Booking.findOne({ _id: bookingId });
 
@@ -1347,6 +1349,7 @@ exports.updatePaymentStatus = async (req, res) => {
         }
 
         updatedBooking.paymentStatus = paymentStatus;
+        updatedBooking.referenceId = referenceId;
 
         if (paymentStatus === 'PAID') {
             const bikeId = updatedBooking.bike;
@@ -1436,9 +1439,10 @@ exports.extendBooking = async (req, res) => {
     }
 };
 
-exports.cancelBooking = async (req, res) => {
+exports.cancelBooking1 = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
+        const { refundPreference, upiId } = req.body
 
         const booking = await Booking.findById(bookingId);
         if (!booking) {
@@ -1459,12 +1463,99 @@ exports.cancelBooking = async (req, res) => {
         }
 
         booking.status = 'CANCELLED';
+        booking.refundPreference = refundPreference;
+        booking.upiId = upiId;
         await booking.save();
 
         return res.status(200).json({ status: 200, message: 'Booking cancelled successfully', data: booking });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.cancelBooking = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId;
+        const { refundPreference, upiId } = req.body;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        if (booking.status === 'CANCELLED' || booking.isTripCompleted) {
+            return res.status(400).json({ status: 400, message: 'Booking is not cancellable', data: null });
+        }
+
+        if (booking.paymentStatus === 'PAID') {
+            const bikeId = booking.bike;
+            const bike = await Bike.findById(bikeId);
+            if (bike) {
+                bike.rentalCount -= 1;
+                await bike.save();
+            }
+        }
+
+        const refundCharges = await RefundCharge.findOne();
+        const refundAmount = booking.totalPrice
+        const newRefund = new Refund({
+            booking: booking._id,
+            refundAmount: refundAmount,
+            refundCharges: refundCharges.refundAmount || 0,
+            totalRefundAmount: refundAmount - refundCharges.refundAmount,
+            refundStatus: 'PENDING',
+            refundDetails: refundPreference,
+            userPaymentDetails: upiId,
+            refundTransactionId: '',
+        });
+
+
+        const savedRefund = await newRefund.save();
+        console.log("booking.totalPrice", booking.totalPrice);
+        booking.status = 'CANCELLED';
+        booking.refundPreference = refundPreference;
+        booking.upiId = upiId;
+        booking.refund = savedRefund._id;
+        await booking.save();
+
+        return res.status(200).json({ status: 200, message: 'Booking cancelled successfully', data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getRefundStatusAndAmount = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId;
+
+        const booking = await Booking.findOne({ _id: bookingId });
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        const refund = await Refund.findOne({ booking: bookingId });
+
+        if (!refund) {
+            return res.status(404).json({ status: 404, message: 'Refund not found', data: null });
+        }
+
+        const response = {
+            status: 200,
+            message: 'Refund status and amount retrieved successfully',
+            data: refund,
+        };
+
+        return res.status(200).json(response);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error while retrieving refund status and amount',
+            data: null,
+        });
     }
 };
 
