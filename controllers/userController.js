@@ -1536,8 +1536,13 @@ exports.getRefundStatusAndAmount = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
         }
 
-        const refund = await Refund.findOne({ booking: bookingId });
-
+        const refund = await Refund.findOne({ booking: bookingId })
+            .populate({
+                path: 'booking',
+                populate: {
+                    path: 'bike user pickupLocation dropOffLocation',
+                },
+            });
         if (!refund) {
             return res.status(404).json({ status: 404, message: 'Refund not found', data: null });
         }
@@ -1558,6 +1563,8 @@ exports.getRefundStatusAndAmount = async (req, res) => {
         });
     }
 };
+
+
 
 exports.getCancelBookingsByUser = async (req, res) => {
     try {
