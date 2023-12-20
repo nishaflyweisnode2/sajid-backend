@@ -815,6 +815,40 @@ exports.getStoreDetails = async (req, res) => {
     }
 };
 
+exports.getStoreDetailsForAccessories = async (req, res) => {
+    try {
+        const { accessoriesId } = req.params;
+
+        const accessories = await Accessory.findById(accessoriesId);
+        if (!accessories) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
+        const pickupStore = await Store.find().populate('location');
+        const dropOffStore = await Store.findOne();
+
+        const accessoriesStoreLocation = pickupStore.map(store => store.location);
+
+        const relationPickup = await BikeStoreRelation.find({
+            accessory: accessories._id,
+            store: pickupStore,
+        });
+
+        const accessoriesDetails = {
+            accessories,
+            pickupStore,
+            accessoriesStoreLocation,
+            relationPickup,
+        };
+
+        return res.status(200).json({ status: 200, data: accessoriesDetails });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+
 exports.checkBikeAvailability = async (req, res) => {
     try {
         const { pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
@@ -2082,6 +2116,117 @@ exports.createOrder = async (req, res) => {
     }
 };
 
+exports.createOrder = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const { items, shippingAddress, storeId, paymentMethod } = req.body;
+
+        if (storeId) {
+            const storeRelation = await BikeStoreRelation.find({ store: storeId });
+            if (!storeRelation) {
+                return res.status(404).json({
+                    status: 404,
+                    message: 'Store relation not found for this User and Store',
+                    data: null,
+                });
+            }
+            console.log("storeRelation", storeRelation);
+
+            if (!storeRelation || storeRelation.length === 0) {
+                return res.status(404).json({
+                    status: 404,
+                    message: 'Store relation not found for this Store',
+                    data: null,
+                });
+            }
+
+            let totalPrice = 0;
+            for (const item of items) {
+                const accessory = await Accessory.findById(item.accessory);
+
+                const accessoryInStore = storeRelation.find(
+                    relation => relation.accessory.equals(item.accessory)
+                );
+
+                if (!accessory || !accessoryInStore) {
+                    return res.status(404).json({
+                        status: 404,
+                        message: `Accessory not found or not related to the specified store for ID: ${item.accessory}`,
+                        data: null,
+                    });
+                }
+
+                item.price = accessory.price || 0;
+                totalPrice += item.price * item.quantity;
+            }
+
+            const newOrder = await Order.create({
+                user: user._id,
+                items,
+                totalPrice,
+                storeId,
+                paymentMethod,
+            });
+
+            return res.status(201).json({
+                status: 201,
+                message: 'Order created successfully',
+                data: newOrder,
+            });
+        } else {
+            const address = await Address.findById({ _id: shippingAddress, user: userId });
+            if (!address) {
+                return res.status(404).json({
+                    status: 404,
+                    message: 'Address not found for this User',
+                    data: null,
+                });
+            }
+
+            let totalPrice = 0;
+            for (const item of items) {
+                const accessory = await Accessory.findById(item.accessory);
+                if (!accessory) {
+                    return res.status(404).json({
+                        status: 404,
+                        message: `Accessory not found for ID: ${item.accessory}`,
+                        data: null,
+                    });
+                }
+                item.price = accessory.price || 0;
+                totalPrice += item.price * item.quantity;
+            }
+
+            const newOrder = await Order.create({
+                user: user._id,
+                items,
+                totalPrice,
+                shippingAddress,
+                paymentMethod,
+            });
+
+            return res.status(201).json({
+                status: 201,
+                message: 'Order created successfully',
+                data: newOrder,
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error',
+            data: null,
+        });
+    }
+};
+
 exports.getAllOrders = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -2091,7 +2236,7 @@ exports.getAllOrders = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'User not found', data: null });
         }
 
-        const orders = await Order.find({ user: userId }).populate('user').populate('items.accessory').populate('shippingAddress');
+        const orders = await Order.find({ user: userId }).populate('user').populate('items.accessory').populate('shippingAddress').populate('storeId');
 
         return res.status(200).json({
             status: 200,
@@ -2112,7 +2257,7 @@ exports.getOrderById = async (req, res) => {
     try {
         const { orderId } = req.params;
 
-        const order = await Order.findById(orderId).populate('user').populate('items.accessory').populate('shippingAddress');
+        const order = await Order.findById(orderId).populate('user').populate('items.accessory').populate('shippingAddress').populate('storeId');
 
         if (!order) {
             return res.status(404).json({
