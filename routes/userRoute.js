@@ -84,5 +84,7 @@ module.exports = (app) => {
     app.get('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.getOrderById);
     app.put('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.updateOrder);
     app.delete('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.deleteOrder);
+    app.get('/api/v1/user/subject/categories', [authJwt.verifyToken], auth.getAllSubjectsCategories);
+    app.get('/api/v1/user/subject/categories/:subjectId', [authJwt.verifyToken], auth.getSubjectsCategoryById);
 
 }

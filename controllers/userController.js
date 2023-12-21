@@ -22,6 +22,7 @@ const Story = require('../models/sotriesModel');
 const Order = require('../models/orderModel');
 const RefundCharge = require('../models/refundChargeModel');
 const Refund = require('../models/refundModel');
+const SubjectsCategory = require('../models/subjectModel');
 
 
 
@@ -2345,6 +2346,36 @@ exports.deleteOrder = async (req, res) => {
     }
 };
 
+exports.getAllSubjectsCategories = async (req, res) => {
+    try {
+        const categories = await SubjectsCategory.find();
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Subjects categories retrieved successfully',
+            data: categories,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getSubjectsCategoryById = async (req, res) => {
+    try {
+        const subjectId = req.params.subjectId;
+        const category = await SubjectsCategory.findById(subjectId);
+
+        if (!category) {
+            return res.status(404).json({ status: 404, message: 'Subjects Category not found', data: null });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Subjects Category retrieved successfully', data: category });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
 
 
 
