@@ -91,6 +91,9 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    qrCode: {
+        type: String,
+    },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

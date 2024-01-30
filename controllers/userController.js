@@ -18,7 +18,7 @@ const Notification = require('../models/notificationModel');
 const TermAndCondition = require('../models/term&conditionModel');
 const CancelationPolicy = require('../models/cancelationPolicyModel');
 const BussinesInquary = require('../models/bussinesInquaryModel');
-const Story = require('../models/sotriesModel');
+const Story = require('../models/storyModel');
 const Order = require('../models/orderModel');
 const RefundCharge = require('../models/refundChargeModel');
 const Refund = require('../models/refundModel');
@@ -849,7 +849,6 @@ exports.getStoreDetailsForAccessories = async (req, res) => {
     }
 };
 
-
 exports.checkBikeAvailability = async (req, res) => {
     try {
         const { pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
@@ -1026,6 +1025,10 @@ exports.createBooking = async (req, res) => {
             if (!subscriptionMonths || subscriptionMonths <= 0) {
                 return res.status(400).json({ status: 400, message: 'Invalid subscription duration', data: null });
             }
+            const bike = await Bike.findOne({ _id: bikeId, isSubscription: true });
+            if (!bike) {
+                return res.status(404).json({ status: 404, message: 'Bike Not Avilable For Subscription', data: null });
+            }
 
             dropOffDate = new Date(requestedPickupDate);
             dropOffDate.setUTCMonth(dropOffDate.getUTCMonth() + subscriptionMonths);
@@ -1113,7 +1116,13 @@ exports.createBooking = async (req, res) => {
                 }
             }
 
-            const rentalPrice = bikeExist.rentalPrice;
+            let rentalPrice;
+            if (subscriptionMonths) {
+                rentalPrice = bikeExist.subscriptionAmount
+            } else {
+                rentalPrice = bikeExist.rentalPrice;
+            }
+            // const rentalPrice = bikeExist.rentalPrice;
             console.log("rentalPrice", rentalPrice);
 
             const durationInDays = calculateDurationInDays(pickupDate, dropOffDate, pickupTime, dropOffTime);
@@ -1162,7 +1171,9 @@ exports.createBooking = async (req, res) => {
                 gst: gstPercentage._id
             });
 
-            const welcomeMessage = `Welcome, ${user.userName}! Thank you for Booking, your Booking details ${newBooking}.`;
+            const { _id: bookingId } = newBooking;
+            const bikeName = bikeExist.brand + " " + bikeExist.model;
+            const welcomeMessage = `Welcome, ${user.firstName + " " + user.lastName}! Thank you for Booking. Your Booking ID is ${bookingId}. You have booked ${bikeName}. Total Price: ${newBooking.totalPrice}.`;
             const welcomeNotification = new Notification({
                 recipient: user._id,
                 content: welcomeMessage,
@@ -1367,6 +1378,61 @@ exports.removeCouponFromBooking = async (req, res) => {
     }
 };
 
+exports.applyWalletToBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.body;
+        const userId = req.user.id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        if (booking.isWalletUsed) {
+            return res.status(400).json({ status: 400, message: 'Wallet has already been applied to this booking', data: null });
+        }
+
+        if (user.wallet <= 0) {
+            return res.status(400).json({ status: 400, message: 'Insufficient wallet balance', data: null });
+        }
+
+        let walletAmountToUse = Math.min(booking.totalPrice * 0.4, user.wallet);
+
+        walletAmountToUse = Math.round(walletAmountToUse);
+
+        if (walletAmountToUse <= 0) {
+            return res.status(400).json({ status: 400, message: 'Wallet amount too low to apply', data: null });
+        }
+
+        user.wallet -= walletAmountToUse;
+        await user.save();
+
+        booking.walletAmount = walletAmountToUse;
+        booking.totalPrice -= walletAmountToUse;
+        booking.isWalletUsed = true;
+
+        await booking.save();
+
+        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! you use your wallet balance ${walletAmountToUse}.`;
+        const welcomeNotification = new Notification({
+            recipient: booking.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
+
+        return res.status(200).json({ status: 200, message: 'Wallet applied successfully', data: booking });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 exports.updatePaymentStatus = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
@@ -1397,6 +1463,24 @@ exports.updatePaymentStatus = async (req, res) => {
         }
 
         await updatedBooking.save();
+
+        if (paymentStatus === 'PAID') {
+            const welcomeMessage = `Welcome, ${updatedBooking.user.mobileNumber}! Thank you for Making Payment Your Payment is Paid.`;
+            const welcomeNotification = new Notification({
+                recipient: updatedBooking.user._id,
+                content: welcomeMessage,
+                type: 'welcome',
+            });
+            await welcomeNotification.save();
+        } else {
+            const welcomeMessage = `Welcome, ${updatedBooking.user.mobileNumber}! Your Payment is Failed.`;
+            const welcomeNotification = new Notification({
+                recipient: updatedBooking.user._id,
+                content: welcomeMessage,
+                type: 'welcome',
+            });
+            await welcomeNotification.save();
+        }
 
         return res.status(200).json({
             status: 200,
@@ -1458,6 +1542,14 @@ exports.extendBooking = async (req, res) => {
         extendedBooking.extendedDropOffTime = extendedDropOffTime;
 
         await extendedBooking.save();
+
+        const welcomeMessage = `Welcome, ${extendedBooking.user.mobileNumber}! Your Booking is Extended Sucessfully.`;
+        const welcomeNotification = new Notification({
+            recipient: extendedBooking.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
 
         return res.status(200).json({
             status: 200,
@@ -1554,6 +1646,14 @@ exports.cancelBooking = async (req, res) => {
         booking.refund = savedRefund._id;
         await booking.save();
 
+        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! Your Booking is Cancel and your refund payment is initiated.`;
+        const welcomeNotification = new Notification({
+            recipient: booking.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
+
         return res.status(200).json({ status: 200, message: 'Booking cancelled successfully', data: booking });
     } catch (error) {
         console.error(error);
@@ -1598,8 +1698,6 @@ exports.getRefundStatusAndAmount = async (req, res) => {
         });
     }
 };
-
-
 
 exports.getCancelBookingsByUser = async (req, res) => {
     try {
@@ -2068,7 +2166,7 @@ exports.getStoryById = async (req, res) => {
     }
 };
 
-exports.createOrder = async (req, res) => {
+exports.createOrder1 = async (req, res) => {
     try {
         const userId = req.user._id;
 
@@ -2212,6 +2310,14 @@ exports.createOrder = async (req, res) => {
                 paymentMethod,
             });
 
+            const welcomeMessage = `Welcome, ${Order.user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
+            const welcomeNotification = new Notification({
+                recipient: Order.user._id,
+                content: welcomeMessage,
+                type: 'welcome',
+            });
+            await welcomeNotification.save();
+
             return res.status(201).json({
                 status: 201,
                 message: 'Order created successfully',
@@ -2301,6 +2407,14 @@ exports.updateOrder = async (req, res) => {
                 data: null,
             });
         }
+
+        const welcomeMessage = `Welcome, ${updatedOrder.user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
+        const welcomeNotification = new Notification({
+            recipient: updatedOrder.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
 
         return res.status(200).json({
             status: 200,

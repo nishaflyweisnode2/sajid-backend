@@ -19,6 +19,12 @@ const storeSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Location',
         },
+        openTime: {
+            type: String,
+        },
+        closeTime: {
+            type: String,
+        },
         isAvailable: {
             type: Boolean,
             default: true,

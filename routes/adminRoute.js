@@ -38,6 +38,7 @@ module.exports = (app) => {
     app.get('/api/v1/admin/stores/:storeId', [authJwt.isAdmin], auth.getStoreById);
     app.put('/api/v1/admin/stores/:storeId', [authJwt.isAdmin], storeImage.single('image'), auth.updateStoreById);
     app.delete('/api/v1/admin/stores/:storeId', [authJwt.isAdmin], auth.deleteStoreById);
+    app.post("/api/v1/admin/partner/registration", auth.registrationPartnerByAdmin);
     app.put('/api/v1/admin/stores/update-partner/:storeId', [authJwt.isAdmin], auth.updatePartnerIdInStore);
     app.get('/api/v1/admin/stores/get-partner/:storeId', [authJwt.isAdmin], auth.getPartnerIdByStoreId);
     app.delete('/api/v1/admin/stores/delete-partner/:storeId', [authJwt.isAdmin], auth.deletePartnerIdFromStore);
@@ -120,6 +121,10 @@ module.exports = (app) => {
     app.delete('/api/v1/admin/refund-charges/:id', [authJwt.isAdmin], auth.deleteRefundChargeById);
     app.put('/api/v1/admin/bookings/updatePaymentStatus/:bookingId', [authJwt.isAdmin], auth.updateRefundPaymentStatus);
     app.get('/api/v1/admin/booking/:bookingId/refund', [authJwt.isAdmin], auth.getRefundStatusAndAmount);
+    app.post('/api/v1/admin/generateQRCode/:userId', [authJwt.isAdmin], auth.generateQrCodeForVendor)
+    app.get('/api/v1/admin/QRCode/get/:userId', [authJwt.isAdmin], auth.getQrCodeForVendor);
+    app.put('/api/v1/admin/QRCode/update/:userId', [authJwt.isAdmin], auth.updateQrCodeForVendor);
+    app.delete('/api/v1/admin/QRCode/delete/:userId', [authJwt.isAdmin], auth.deleteQrCodeForVendor);
 
 
 

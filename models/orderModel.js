@@ -51,6 +51,18 @@ const orderSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    orderOtp: {
+        type: String,
+        default: null,
+    },
+    isOrderOtp: {
+        type: Boolean,
+        default: false
+    },
+    orderDeliveredDate: {
+        type: Date,
+        default: null,
+    },
 });
 
 const Order = mongoose.model('Order', orderSchema);

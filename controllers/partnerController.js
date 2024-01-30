@@ -13,6 +13,9 @@ const Coupon = require('../models/couponModel');
 const AccessoryCategory = require('../models/accessory/accessoryCategoryModel')
 const Accessory = require('../models/accessory/accessoryModel')
 const Order = require('../models/orderModel')
+const mongoose = require('mongoose');
+const Notification = require('../models/notificationModel');
+
 
 
 
@@ -59,6 +62,14 @@ exports.signin = async (req, res) => {
             email: user.email,
             userType: user.userType,
         }
+        const welcomeMessage = `Welcome, ${user.mobileNumber}! Thank you for Login.`;
+        const welcomeNotification = new Notification({
+            recipient: user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
+
         return res.status(201).send({ data: obj, accessToken: accessToken });
     } catch (error) {
         console.error(error);
@@ -155,6 +166,26 @@ exports.getBikeByPartnerAndStore = async (req, res) => {
     }
 };
 
+
+async function sendNotificationToPartner(booking, partnerId) {
+    const partner = await User.findById(partnerId);
+
+    if (partner && partner._id) {
+        const notificationMessage = `You have a new booking scheduled for ${booking.pickupDate}.`;
+
+        const notification = new Notification({
+            recipient: partner._id,
+            content: notificationMessage,
+        });
+
+        try {
+            await notification.save();
+        } catch (error) {
+            console.error('Error saving partner notification:', error);
+        }
+    }
+}
+
 exports.getUpcomingBookingsForPartner = async (req, res) => {
     try {
         const partnerId = req.user._id;
@@ -186,6 +217,10 @@ exports.getUpcomingBookingsForPartner = async (req, res) => {
                 }
             ]
         }).populate('user bike');
+
+        for (const booking of upcomingBookings) {
+            await sendNotificationToPartner(booking, partnerId);
+        }
 
         return res.status(200).json({
             status: 200,
@@ -344,7 +379,7 @@ exports.approveBookingStatus = async (req, res) => {
             vechileNo,
         } = req.body;
 
-        const booking = await Booking.findById(bookingId).populate('bike');
+        const booking = await Booking.findById(bookingId).populate('bike user');
 
         if (!booking) {
             return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
@@ -382,6 +417,14 @@ exports.approveBookingStatus = async (req, res) => {
         booking.status = 'APPROVED';
 
         await booking.save();
+
+        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! Thank you for Booking your Booking is Approved.`;
+        const welcomeNotification = new Notification({
+            recipient: booking.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
 
         return res.status(200).json({
             status: 200,
@@ -473,6 +516,88 @@ exports.approveBookingResendOTP = async (req, res) => {
     }
 };
 
+exports.getApprovedBookingsForPartner1 = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const stores = await Store.find({ partner: partnerId });
+
+        const storeIds = stores.map(store => store._id);
+
+        const relations = await BikeStoreRelation.find({ store: { $in: storeIds } });
+
+        const bikeId = relations.map(relation => relation.bike);
+
+        const accessories = await Bike.find({ _id: { $in: bikeId } })
+
+        const booking = await Booking.findById(bikeId).populate('bike');
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
+        }
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId, });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        if (booking.paymentStatus !== "PAID") {
+            return res.status(403).json({ status: 403, message: 'Cannot approve booking because payment is not complete', data: null });
+        }
+
+        const approvedBookings = await Booking.find({
+            status: 'APPROVED',
+        }).populate({
+            path: 'bike',
+            // populate: {
+            //     path: 'store',
+            // },
+        });
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Approved bookings for partner retrieved successfully',
+            data: approvedBookings,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getApprovedBookingsForPartner = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with any store.', data: null });
+        }
+
+        const storeIds = (await Store.find({ partner: partnerId })).map(store => store._id);
+
+        const relations = await BikeStoreRelation.find({ store: { $in: storeIds } });
+
+        const bikeIds = relations.map(relation => relation.bike);
+
+        const approvedBookings = await Booking.find({
+            bike: { $in: bikeIds },
+            status: 'APPROVED',
+            paymentStatus: 'PAID'
+        }).populate('bike');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Approved bookings for partner retrieved successfully',
+            data: approvedBookings,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
 exports.rejectBookingStatus = async (req, res) => {
     try {
         const partnerId = req.user._id;
@@ -510,6 +635,14 @@ exports.rejectBookingStatus = async (req, res) => {
         booking.rejectOtp = otp
 
         await booking.save();
+
+        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! Thank you for Booking your Booking is Rject.`;
+        const welcomeNotification = new Notification({
+            recipient: booking.user._id,
+            content: welcomeMessage + " " + rejectRemarks,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
 
         return res.status(200).json({
             status: 200,
@@ -587,6 +720,37 @@ exports.rejectBookingResendOTP = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).send({ status: 500, message: "Server error" + error.message });
+    }
+};
+
+exports.getRejectedBookingsForPartner = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with any store.', data: null });
+        }
+
+        const storeIds = (await Store.find({ partner: partnerId })).map(store => store._id);
+
+        const relations = await BikeStoreRelation.find({ store: { $in: storeIds } });
+
+        const bikeIds = relations.map(relation => relation.bike);
+
+        const rejectBookings = await Booking.find({
+            bike: { $in: bikeIds },
+            status: 'CANCELLED',
+        }).populate('bike');
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Reject bookings for partner retrieved successfully',
+            data: rejectBookings,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
     }
 };
 
@@ -806,7 +970,10 @@ exports.getOrderByIdForPartner = async (req, res) => {
         const bikeRelations = await BikeStoreRelation.find({ partner: partnerId, store: isPartnerAssociated }).populate('accessory');
         const partnerAccessories = bikeRelations.map(relation => relation.accessory);
 
-        const order = await Order.findById(orderId).populate('items.accessory').populate('shippingAddress').populate('user');
+        const order = await Order.findById(orderId).populate('items.accessory').populate('shippingAddress').populate('user').populate({
+            path: 'storeId',
+            populate: { path: 'partner' }
+        });
 
         if (!order) {
             return res.status(404).json({ status: 404, message: 'Order not found', data: null });
@@ -834,9 +1001,35 @@ exports.updateOrder = async (req, res) => {
         const { orderId } = req.params;
         const { status } = req.body;
 
+        const validStatusValues = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
+        if (!validStatusValues.includes(status)) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Invalid order status',
+                data: null,
+            });
+        }
+
+        let otp = '';
+        try {
+            otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+        } catch (otpError) {
+            console.error('Error generating OTP:', otpError);
+            return res.status(500).json({
+                status: 500,
+                message: 'Error generating OTP',
+                data: null,
+            });
+        }
+
         const updatedOrder = await Order.findByIdAndUpdate(
             orderId,
-            { status },
+            {
+                status,
+                orderOtp: otp,
+                isOrderOtp: false,
+                orderDeliveredDate: new Date(),
+            },
             { new: true }
         ).populate('user').populate('items.accessory').populate('shippingAddress');
 
@@ -847,6 +1040,14 @@ exports.updateOrder = async (req, res) => {
                 data: null,
             });
         }
+
+        const welcomeMessage = `Welcome, ${updatedOrder.user.mobileNumber}! You Order Status is ${updatedOrder.status}.`;
+        const welcomeNotification = new Notification({
+            recipient: updatedOrder.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
 
         return res.status(200).json({
             status: 200,
@@ -860,6 +1061,87 @@ exports.updateOrder = async (req, res) => {
             message: 'Server error',
             data: null,
         });
+    }
+};
+
+exports.orderVerifyOtp = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const orderId = req.params.orderId;
+        const { otp } = req.body;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        const order = await Order.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({ status: 404, message: 'Order not found', data: null });
+        }
+
+        const userId = order.user;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).send({ message: "User not found" });
+        }
+
+        console.log("order.orderOtp", order.orderOtp);
+        if (order.orderOtp !== otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        const updatedOrder = await Order.findByIdAndUpdate(
+            orderId,
+            {
+                isOrderOtp: true,
+            },
+            { new: true }
+        );
+
+        return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updatedOrder });
+    } catch (err) {
+        console.error(err.message);
+        return res.status(500).send({ error: "Internal server error" + err.message });
+    }
+};
+
+exports.orderResendOTP = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const { id } = req.params;
+
+        const isPartnerAssociated = await Store.exists({ partner: partnerId });
+
+        if (!isPartnerAssociated) {
+            return res.status(403).json({ status: 403, message: 'Unauthorized. Partner is not associated with the store.', data: null });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ status: 400, message: 'Invalid order ID', data: null });
+        }
+
+        let otp;
+        try {
+            otp = newOTP.generate(6, { alphabets: false, upperCase: false, specialChar: false });
+        } catch (otpError) {
+            console.error('Error generating OTP:', otpError);
+            return res.status(500).json({ status: 500, message: 'Error generating OTP', data: null });
+        }
+
+        const updated = await Order.findOneAndUpdate(
+            { _id: id },
+            { orderOtp: otp, isOrderOtp: false },
+            { new: true }
+        );
+
+        return res.status(200).json({ status: 200, message: 'OTP resent', data: updated });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error' + error.message });
     }
 };
 
@@ -889,5 +1171,80 @@ exports.deleteOrder = async (req, res) => {
             message: 'Server error',
             data: null,
         });
+    }
+};
+
+exports.getQrCodeForVendor = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+
+        const user = await User.findById(partnerId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.json({
+            data: {
+                qrCode: user.qrCode,
+                user
+            }
+        });
+    } catch (error) {
+        console.error('Error getting QR Code:', error.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.markNotificationAsRead = async (req, res) => {
+    try {
+        const notificationId = req.params.notificationId;
+
+        const notification = await Notification.findByIdAndUpdate(
+            notificationId,
+            { status: 'read' },
+            { new: true }
+        );
+
+        if (!notification) {
+            return res.status(404).json({ status: 404, message: 'Notification not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Notification marked as read', data: notification });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error marking notification as read', error: error.message });
+    }
+};
+
+exports.getNotificationsById = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const notificationId = req.params.notificationId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const notifications = await Notification.find({ recipient: userId, _id: notificationId });
+
+        return res.status(200).json({ status: 200, message: 'Notifications retrieved successfully', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error retrieving notifications', error: error.message });
+    }
+};
+
+exports.getAllNotificationsForUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+        const notifications = await Notification.find({ recipient: userId });
+
+        return res.status(200).json({ status: 200, message: 'Notifications retrieved successfully', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error retrieving notifications', error: error.message });
     }
 };

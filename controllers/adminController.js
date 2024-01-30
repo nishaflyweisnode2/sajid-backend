@@ -19,10 +19,11 @@ const TermAndCondition = require('../models/term&conditionModel');
 const CancelationPolicy = require('../models/cancelationPolicyModel');
 const SubjectsCategory = require('../models/subjectModel');
 const BussinesInquary = require('../models/bussinesInquaryModel');
-const Story = require('../models/sotriesModel');
+const Story = require('../models/storyModel');
 const Order = require('../models/orderModel')
 const RefundCharge = require('../models/refundChargeModel');
 const Refund = require('../models/refundModel');
+const QRCode = require('qrcode');
 
 
 
@@ -333,6 +334,13 @@ exports.updateVerificationStatus = async (req, res) => {
         user.isVerified = isVerified;
         await user.save();
 
+        const welcomeMessage = `Welcome, ${user.firstName}! Your Account Is Verifed By Admin Now You Can Book Your First Ride.`;
+        const welcomeNotification = new Notification({
+            recipient: user._id,
+            content: welcomeMessage,
+        });
+        await welcomeNotification.save();
+
         return res.status(200).json({
             status: 200,
             message: 'Verification status updated successfully',
@@ -520,7 +528,7 @@ exports.getLocationsByType = async (req, res) => {
 
 exports.createStore = async (req, res) => {
     try {
-        const { name, location, isAvailable } = req.body;
+        const { name, location, isAvailable, openTime, closeTime } = req.body;
 
         if (!req.file) {
             return res.status(400).json({ status: 400, error: "Image file is required" });
@@ -537,6 +545,8 @@ exports.createStore = async (req, res) => {
             image: req.file.path,
             location,
             isAvailable: isAvailable || true,
+            openTime,
+            closeTime
         });
 
         return res.status(201).json({ status: 201, message: 'Store created successfully', data: newStore });
@@ -576,7 +586,7 @@ exports.getStoreById = async (req, res) => {
 exports.updateStoreById = async (req, res) => {
     try {
         const storeId = req.params.storeId;
-        const { name, location, isAvailable } = req.body;
+        const { name, location, isAvailable, openTime, closeTime } = req.body;
 
         const store = await Store.findById(storeId);
         if (!store) {
@@ -610,6 +620,8 @@ exports.updateStoreById = async (req, res) => {
 
         store.location = location || store.location;
         store.isAvailable = isAvailable || store.isAvailable;
+        store.openTime = openTime || store.openTime;
+        store.closeTime = closeTime || store.closeTime;
 
         const updatedStore = await store.save();
 
@@ -633,6 +645,26 @@ exports.deleteStoreById = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.registrationPartnerByAdmin = async (req, res) => {
+    const { mobileNumber, email } = req.body;
+    try {
+        req.body.email = email.split(" ").join("").toLowerCase();
+        let user = await User.findOne({ $and: [{ $or: [{ email: req.body.email }, { mobileNumber: mobileNumber }] }], userType: "PARTNER" });
+        if (!user) {
+            req.body.password = bcrypt.hashSync(req.body.password, 8);
+            req.body.userType = "PARTNER";
+            req.body.accountVerification = true;
+            const userCreate = await User.create(req.body);
+            return res.status(200).send({ message: "registered successfully ", data: userCreate, });
+        } else {
+            return res.status(409).send({ message: "Already Exist", data: [] });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server error" });
     }
 };
 
@@ -712,7 +744,7 @@ exports.deletePartnerIdFromStore = async (req, res) => {
 exports.createBike = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, rentalPrice, pickup, rentalExtendedPrice, depositMoney, totalKm, bikeNumber } = req.body;
+        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, rentalPrice, pickup, rentalExtendedPrice, depositMoney, totalKm, bikeNumber, isSubscription, subscriptionAmount } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -770,7 +802,9 @@ exports.createBike = async (req, res) => {
             depositMoney,
             rentalExtendedPrice,
             bikeNumber,
-            totalKm
+            totalKm,
+            subscriptionAmount,
+            isSubscription
         });
 
         return res.status(201).json({ status: 201, message: 'Bike created successfully', data: newBike });
@@ -2412,5 +2446,87 @@ exports.getRefundStatusAndAmount = async (req, res) => {
             message: 'Server error while retrieving refund status and amount',
             data: null,
         });
+    }
+};
+
+async function generateQRCode(data) {
+    return QRCode.toDataURL(data);
+}
+
+async function updateUserQRCode(userId, qrCodeDataUri) {
+    await User.findByIdAndUpdate(userId, { qrCode: qrCodeDataUri });
+}
+
+exports.generateQrCodeForVendor = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const qrCodeDataUri = await generateQRCode(user._id.toString());
+
+        await updateUserQRCode(userId, qrCodeDataUri);
+
+        return res.json({ message: 'QR Code generated and saved successfully', data: qrCodeDataUri });
+    } catch (error) {
+        console.error('Error generating or saving QR Code:', error.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.getQrCodeForVendor = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        return res.json({ qrCode: user.qrCode });
+    } catch (error) {
+        console.error('Error getting QR Code:', error.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.updateQrCodeForVendor = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const updatedQrCode = await generateQRCode(user._id.toString());
+
+        await updateUserQRCode(userId, updatedQrCode);
+
+        return res.json({ message: 'QR Code updated successfully' });
+    } catch (error) {
+        console.error('Error updating QR Code:', error.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.deleteQrCodeForVendor = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        await updateUserQRCode(userId, null); // Remove QR code data
+
+        return res.json({ message: 'QR Code deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting QR Code:', error.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
 };

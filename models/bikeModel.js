@@ -88,6 +88,14 @@ const bikeSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        subscriptionAmount: {
+            type: Number,
+            default: 0,
+        },
+        isSubscription: {
+            type: Boolean,
+            default: false,
+        },
         pickup: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Location',

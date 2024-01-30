@@ -58,6 +58,13 @@ const bookingSchema = new mongoose.Schema(
         accessoriesPrice: {
             type: Number,
         },
+        walletAmount: {
+            type: Number,
+        },
+        isWalletUsed: {
+            type: Boolean,
+            default: false,
+        },
         paymentStatus: {
             type: String,
             enum: ['PENDING', 'FAILED', 'PAID'],

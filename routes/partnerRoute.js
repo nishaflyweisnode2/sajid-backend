@@ -27,9 +27,11 @@ module.exports = (app) => {
     app.put('/api/v1/partner/bookings/:bookingId/approve', [authJwt.isPartner], bikeApprovedImage.single('approvedImage'), auth.approveBookingStatus);
     app.post("/api/v1/partner/bookings/verify/:bookingId", [authJwt.isPartner], auth.approveBookingVerifyOtp);
     app.post("/api/v1/partner/bookings/resendOtp/:id", [authJwt.isPartner], auth.approveBookingResendOTP);
+    app.get('/api/v1/partner/approved-bookings', [authJwt.isPartner], auth.getApprovedBookingsForPartner);
     app.put('/api/v1/partner/bookings/:bookingId/reject', [authJwt.isPartner], auth.rejectBookingStatus);
     app.post("/api/v1/partner/bookings/cancleBooking/verify/:bookingId", [authJwt.isPartner], auth.rejectBookingVerifyOtp);
     app.post("/api/v1/partner/bookings/cancleBooking/resendOtp/:id", [authJwt.isPartner], auth.rejectBookingResendOTP);
+    app.get('/api/v1/partner/rejected-bookings', [authJwt.isPartner], auth.getRejectedBookingsForPartner);
     app.get('/api/v1/partner/accessories/partner', [authJwt.isPartner], auth.getAccessoryByPartnerId);
     app.get('/api/v1/partner/accessories/partner/:storeId', [authJwt.isPartner], auth.getAccessoryByPartnerAndStore);
     app.put('/api/v1/partner/bookings/:bookingId/trip-end-details', [authJwt.isPartner], auth.updateTripEndDetails);
@@ -38,7 +40,14 @@ module.exports = (app) => {
     app.get('/api/v1/partner/order', [authJwt.isPartner], auth.getAllOrdersForPartner);
     app.get('/api/v1/partner/order/:orderId', [authJwt.isPartner], auth.getOrderByIdForPartner);
     app.put('/api/v1/partner/order/:orderId', [authJwt.isPartner], auth.updateOrder);
+    app.post("/api/v1/partner/order/status/:orderId", [authJwt.isPartner], auth.orderVerifyOtp);
+    app.post("/api/v1/partner/order/status/resendOtp/:id", [authJwt.isPartner], auth.orderResendOTP);
     app.delete('/api/v1/partner/order/:orderId', [authJwt.isPartner], auth.deleteOrder);
+    app.get('/api/v1/partner/QRCode/get', [authJwt.isPartner], auth.getQrCodeForVendor);
+    app.put('/api/v1/partner/notifications/:notificationId', [authJwt.isPartner], auth.markNotificationAsRead);
+    app.get('/api/v1/partner/notifications/user/:notificationId', [authJwt.isPartner], auth.getNotificationsById);
+    app.get('/api/v1/partner/notifications/user', [authJwt.isPartner], auth.getAllNotificationsForUser);
+
 
 
 
