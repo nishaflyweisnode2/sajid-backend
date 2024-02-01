@@ -856,82 +856,87 @@ exports.checkBikeAvailability = async (req, res) => {
         const startDateTime = new Date(`${pickupDate}T${pickupTime}`);
         const endDateTime = new Date(`${dropOffDate}T${dropOffTime}`);
 
+        console.log("startDateTime", startDateTime);
+        console.log("endDateTime", endDateTime);
+
         const bookedBikes = await Booking.find({
             $and: [
                 {
                     $or: [
-                        {
-                            $and: [
-                                { 'pickupTime': { $lte: pickupTime } },
-                                { 'dropOffTime': { $gte: dropOffTime } },
-                            ],
-                        },
-                        {
-                            $and: [
-                                { 'pickupTime': { $gte: pickupTime } },
-                                { 'dropOffTime': { $lte: dropOffTime } },
-                            ],
-                        },
-                    ],
-                    $or: [
-                        {
-                            $and: [
-                                { 'pickupDate': { $lte: pickupDate } },
-                                { 'dropOffDate': { $gte: dropOffDate } },
-                            ],
-                        },
-                        {
-                            $and: [
-                                { 'pickupDate': { $lte: pickupDate } },
-                                { 'dropOffDate': { $gte: dropOffDate } },
-                            ],
-                        },
-                    ],
+                        { pickupTime: { $lte: dropOffTime }, dropOffTime: { $gte: pickupTime } },
+                        { pickupTime: { $gte: pickupTime }, dropOffTime: { $lte: dropOffTime } }
+                    ]
                 },
                 {
                     $or: [
-                        { 'status': 'PENDING', 'isTripCompleted': false },
-                        { 'isSubscription': false },
-                        {
-                            'isTimeExtended': true,
-                            'timeExtendedDropOffTime': { $gte: startDateTime, $lte: endDateTime },
-                        },
-                    ],
+                        { pickupDate: { $lte: dropOffDate }, dropOffDate: { $gte: pickupDate } },
+                        { pickupDate: { $gte: pickupDate }, dropOffDate: { $lte: dropOffDate } }
+                    ]
                 },
-            ],
+                {
+                    $or: [
+                        { status: 'PENDING', isTripCompleted: false, paymentStatus: 'PENDING' },
+                        { isSubscription: false },
+                        {
+                            isTimeExtended: true,
+                            timeExtendedDropOffTime: { $gte: startDateTime, $lte: endDateTime }
+                        }
+                    ]
+                }
+            ]
         });
+
+        console.log("bookedBikes", bookedBikes);
+
         const bookedBikeIds = bookedBikes.map(booking => booking.bike);
 
-        const bike = await Bike.find();
+        console.log("bookedBikeIds", bookedBikeIds);
+
+        // const bike = await Bike.find();
+
+        // const unavailableBikeIds = await BikeStoreRelation.find({
+        //     bike: { $in: bike },
+        //     totalNumberOfBookedBikes: { $gt: 0 },
+        // }).distinct('bike');
+
+        // let availableBikes = {};
+
+        // if (bookedBikeIds) {
+        //     availableBikes = await Bike.find({
+        //         _id: { $nin: bookedBikeIds, /*$nin: unavailableBikeIds */ },
+        //         isOnTrip: false,
+        //         isAvailable: true,
+        //         nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+        //     });
+        // } else if (unavailableBikeIds) {
+        //     availableBikes = await Bike.find({
+        //         _id: {/* $nin: bookedBikeIds, */ $nin: unavailableBikeIds },
+        //         isOnTrip: false,
+        //         isAvailable: true,
+        //         nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+        //     });
+        // } else {
+        //     availableBikes = await Bike.find({
+        //         _id: { $nin: bookedBikeIds, $nin: unavailableBikeIds },
+        //         isOnTrip: false,
+        //         isAvailable: true,
+        //         nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
+        //     });
+        // }
+
         const unavailableBikeIds = await BikeStoreRelation.find({
-            bike: { $in: bike },
-            totalNumberOfBookedBikes: { $gt: 0 },
+            bike: { $in: bookedBikeIds },
+            totalNumberOfBookedBikes: { $gt: 0 }
         }).distinct('bike');
 
-        let availableBikes = {};
+        console.log("unavailableBikeIds", unavailableBikeIds);
 
-        if (bookedBikeIds) {
-            availableBikes = await Bike.find({
-                _id: { $nin: bookedBikeIds, /*$nin: unavailableBikeIds */ },
-                isOnTrip: false,
-                isAvailable: true,
-                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
-            });
-        } else if (unavailableBikeIds) {
-            availableBikes = await Bike.find({
-                _id: {/* $nin: bookedBikeIds, */ $nin: unavailableBikeIds },
-                isOnTrip: false,
-                isAvailable: true,
-                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
-            });
-        } else {
-            availableBikes = await Bike.find({
-                _id: { $nin: bookedBikeIds, $nin: unavailableBikeIds },
-                isOnTrip: false,
-                isAvailable: true,
-                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime },
-            });
-        }
+        const availableBikes = await Bike.find({
+            _id: { $nin: bookedBikeIds.concat(unavailableBikeIds) },
+            isOnTrip: false,
+            isAvailable: true,
+            nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime }
+        });
 
         return res.status(200).json({ status: 200, data: availableBikes });
     } catch (error) {
