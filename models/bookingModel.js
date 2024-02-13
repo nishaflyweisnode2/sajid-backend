@@ -88,6 +88,13 @@ const bookingSchema = new mongoose.Schema(
         extendedPrice: {
             type: Number,
         },
+        totalExtendedPrice: {
+            type: Number,
+        },
+        isExtendedPricePaid: {
+            type: Boolean,
+            default: false
+        },
         offerCode: {
             type: String,
         },
@@ -161,6 +168,15 @@ const bookingSchema = new mongoose.Schema(
             default: 'UPI',
         },
         upiId: {
+            type: String,
+        },
+        accountNo: {
+            type: String,
+        },
+        branchName: {
+            type: String,
+        },
+        ifscCode: {
             type: String,
         },
 

@@ -24,6 +24,7 @@ const Order = require('../models/orderModel')
 const RefundCharge = require('../models/refundChargeModel');
 const Refund = require('../models/refundModel');
 const QRCode = require('qrcode');
+const firebase = require('../middlewares/firebase');
 
 
 
@@ -932,42 +933,50 @@ exports.deleteBikeById = async (req, res) => {
 
 exports.createBikeStoreRelation = async (req, res) => {
     try {
-        const { bikeId, storeId, accessoryId } = req.body;
+        const { bikeId, storeId, accessoryId, totalNumberOfBikes, totalNumberOfAccessory } = req.body;
 
-        const bike = await Bike.findById(bikeId);
-        if (!bike) {
-            return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+        let totalNumberOfPartnerBikes = 0;
+        let totalNumberOfPartnerAccessory = 0;
+
+        if (bikeId) {
+            const bike = await Bike.findById(bikeId);
+            if (!bike) {
+                return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+            }
+
+            const storeRelations = await BikeStoreRelation.find({ store: storeId });
+            const existingBikeRelation = storeRelations.find(relation => relation.bike.toString() === bikeId);
+
+            if (existingBikeRelation) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Relation already exists for the given bike and store',
+                    data: null,
+                });
+            }
+
+            totalNumberOfPartnerBikes = storeRelations.reduce((total, relation) => total + relation.totalNumberOfPartnerBikes, 0) + 1;
         }
 
-        const accessory = await Accessory.findById(accessoryId);
-        if (!accessory) {
-            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        if (accessoryId) {
+            const accessory = await Accessory.findById(accessoryId);
+            if (!accessory) {
+                return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+            }
+
+            const accessoryRelations = await BikeStoreRelation.find({ store: storeId });
+            const existingAccessoryRelation = accessoryRelations.find(relation => relation.accessory.toString() === accessoryId);
+
+            if (existingAccessoryRelation) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Relation already exists for the given accessory and store',
+                    data: null,
+                });
+            }
+
+            totalNumberOfPartnerAccessory = accessoryRelations.reduce((total, relation) => total + relation.totalNumberOfPartnerAccessory, 0) + 1;
         }
-
-        const storeRelations = await BikeStoreRelation.find({ store: storeId });
-        const existingBikeRelation = storeRelations.find(relation => relation.bike.toString() === bikeId);
-
-        if (existingBikeRelation) {
-            return res.status(400).json({
-                status: 400,
-                message: 'Relation already exists for the given bike and store',
-                data: null,
-            });
-        }
-
-        const accessoryRelations = await BikeStoreRelation.find({ store: storeId });
-        const existingAccessoryRelation = accessoryRelations.find(relation => relation.accessory.toString() === accessoryId);
-
-        if (existingAccessoryRelation) {
-            return res.status(400).json({
-                status: 400,
-                message: 'Relation already exists for the given accessory and store',
-                data: null,
-            });
-        }
-
-        const totalNumberOfBikes = storeRelations.length > 0 ? storeRelations[0].totalNumberOfBikes + 1 : 1;
-        const totalNumberOfAccessory = accessoryRelations.length > 0 ? accessoryRelations[0].totalNumberOfAccessory + 1 : 1;
 
         const newRelation = await BikeStoreRelation.create({
             bike: bikeId,
@@ -975,6 +984,8 @@ exports.createBikeStoreRelation = async (req, res) => {
             accessory: accessoryId,
             totalNumberOfBikes: totalNumberOfBikes,
             totalNumberOfAccessory: totalNumberOfAccessory,
+            totalNumberOfPartnerBikes: totalNumberOfPartnerBikes,
+            totalNumberOfPartnerAccessory: totalNumberOfPartnerAccessory,
         });
 
         return res.status(201).json({
@@ -1033,39 +1044,47 @@ exports.updateBikeStoreRelation = async (req, res) => {
         const relationId = req.params.relationId;
         const { bikeId, storeId, accessoryId, totalNumberOfBikes, totalNumberOfBookedBikes, totalNumberOfAccessory, totalNumberOfBookedAccessory } = req.body;
 
-
         const existingRelation = await BikeStoreRelation.findById(relationId);
         if (!existingRelation) {
             return res.status(404).json({ status: 404, message: 'Bike-Store relation not found', data: null });
         }
 
-        const bike = await Bike.findById(bikeId);
-        if (!bike) {
-            return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+        if (bikeId) {
+            const bike = await Bike.findById(bikeId);
+            if (!bike) {
+                return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
+            }
+            const existingBikeRelation = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
+            if (existingBikeRelation && existingBikeRelation._id.toString() !== relationId) {
+                return res.status(400).json({ status: 400, message: 'Relation already exists for the given bike and store', data: null });
+            }
+            existingRelation.bike = bikeId;
         }
 
-        const accessory = await Accessory.findById(accessoryId);
-        if (!accessory) {
-            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        if (accessoryId) {
+            const accessory = await Accessory.findById(accessoryId);
+            if (!accessory) {
+                return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+            }
+            const existingAccessoryRelation = await BikeStoreRelation.findOne({ accessory: accessoryId, store: storeId });
+            if (existingAccessoryRelation && existingAccessoryRelation._id.toString() !== relationId) {
+                return res.status(400).json({ status: 400, message: 'Relation already exists for the given accessory and store', data: null });
+            }
+            existingRelation.accessory = accessoryId;
         }
 
-        // totalNumberOfBikes = typeof bike.totalNumberOfBikes === 'number' ? bike.totalNumberOfBikes : 0;
-
-        const existingBikeRelation = await BikeStoreRelation.findOne({ bike: bikeId, store: storeId });
-        if (existingBikeRelation) {
-            return res.status(400).json({ status: 400, message: 'Relation already exists for the given bike and store', data: null });
+        if (totalNumberOfBikes !== undefined) {
+            existingRelation.totalNumberOfBikes = totalNumberOfBikes;
         }
-
-        const existingAccessoryRelation = await BikeStoreRelation.findOne({ accessory: accessoryId, store: storeId });
-        if (existingAccessoryRelation) {
-            return res.status(400).json({ status: 400, message: 'Relation already exists for the given accessory and store', data: null });
+        if (totalNumberOfBookedBikes !== undefined) {
+            existingRelation.totalNumberOfBookedBikes = totalNumberOfBookedBikes;
         }
-
-        existingRelation.totalNumberOfBikes = totalNumberOfBikes;
-        existingRelation.totalNumberOfBookedBikes = totalNumberOfBookedBikes;
-        existingRelation.totalNumberOfAccessory = totalNumberOfAccessory;
-        existingRelation.totalNumberOfBookedAccessory = totalNumberOfBookedAccessory;
-
+        if (totalNumberOfAccessory !== undefined) {
+            existingRelation.totalNumberOfAccessory = totalNumberOfAccessory;
+        }
+        if (totalNumberOfBookedAccessory !== undefined) {
+            existingRelation.totalNumberOfBookedAccessory = totalNumberOfBookedAccessory;
+        }
 
         const updatedRelation = await existingRelation.save();
 
@@ -2400,6 +2419,18 @@ exports.updateRefundPaymentStatus = async (req, res) => {
 
         await refundId.save();
 
+        if (refundId.refundStatus === 'PENDING' || refundId.refundStatus === 'PROCESSING') {
+            if (refundId.type === 'WALLET') {
+                const user = await User.findById(updatedBooking.user);
+                if (!user) {
+                    return res.status(404).json({ status: 404, message: 'User not found', data: null });
+                }
+
+                user.wallet += refundId.totalRefundAmount;
+                await user.save();
+            }
+        }
+
         return res.status(200).json({
             status: 200,
             message: 'Payment status updated successfully',
@@ -2414,7 +2445,6 @@ exports.updateRefundPaymentStatus = async (req, res) => {
         });
     }
 };
-
 
 exports.getRefundStatusAndAmount = async (req, res) => {
     try {

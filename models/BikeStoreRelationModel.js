@@ -18,7 +18,15 @@ const bikeStoreRelationSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        totalNumberOfPartnerBikes: {
+            type: Number,
+            default: 0,
+        },
         totalNumberOfBookedBikes: {
+            type: Number,
+            default: 0,
+        },
+        totalNumberOfPartnerAccessory: {
             type: Number,
             default: 0,
         },

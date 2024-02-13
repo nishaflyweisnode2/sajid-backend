@@ -426,21 +426,21 @@ exports.approveBookingStatus = async (req, res) => {
         });
         await welcomeNotification.save();
 
-        const store = await Store.findOne({ partner: partnerId });
+        // const store = await Store.findOne({ partner: partnerId });
 
-        if (!store) {
-            return res.status(404).json({ status: 404, message: 'Store not found for the partner', data: null });
-        }
+        // if (!store) {
+        //     return res.status(404).json({ status: 404, message: 'Store not found for the partner', data: null });
+        // }
 
-        const bikeStoreRelation = await BikeStoreRelation.findOneAndUpdate(
-            { bike: booking.bike, store: store._id },
-            { $inc: { totalNumberOfBookedBikes: 1 } },
-            { new: true }
-        );
+        // const bikeStoreRelation = await BikeStoreRelation.findOneAndUpdate(
+        //     { bike: booking.bike, store: store._id },
+        //     { $inc: { totalNumberOfBookedBikes: 1 } },
+        //     { new: true }
+        // );
 
-        if (!bikeStoreRelation) {
-            return res.status(404).json({ status: 404, message: 'BikeStoreRelation not found', data: null });
-        }
+        // if (!bikeStoreRelation) {
+        //     return res.status(404).json({ status: 404, message: 'BikeStoreRelation not found', data: null });
+        // }
 
         return res.status(200).json({
             status: 200,

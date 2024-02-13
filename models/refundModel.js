@@ -6,7 +6,16 @@ const refundSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Booking',
         },
-        refundDetails: {
+        accountNo: {
+            type: String,
+        },
+        upiId: {
+            type: String,
+        },
+        branchName: {
+            type: String,
+        },
+        ifscCode: {
             type: String,
         },
         refundAmount: {
@@ -17,6 +26,11 @@ const refundSchema = new mongoose.Schema(
         },
         totalRefundAmount: {
             type: Number,
+        },
+        type: {
+            type: String,
+            enum: ['UPI', 'WALLET', 'OTHER'],
+            default: 'PENDING',
         },
         refundStatus: {
             type: String,
