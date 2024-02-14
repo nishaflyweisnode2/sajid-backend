@@ -498,7 +498,6 @@ exports.getCityById = async (req, res) => {
     }
 };
 
-
 exports.createAddress = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -1184,7 +1183,7 @@ exports.createBooking1 = async (req, res) => {
 exports.createBooking = async (req, res) => {
     try {
         const userId = req.user._id;
-        let { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, subscriptionMonths, accessoriesId } = req.body;
+        let { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime, subscriptionMonths, accessoriesId, accessoriesSize } = req.body;
 
         const currentDate = new Date();
         const requestedPickupDate = new Date(`${pickupDate}T${pickupTime}:00.000Z`);
@@ -1291,6 +1290,13 @@ exports.createBooking = async (req, res) => {
 
                     accessoriesPrice = accessory.price || 0;
                 }
+
+                const accessoriesSizeCheck = accessory.size;
+                console.log(accessoriesSizeCheck);
+
+                if (!accessoriesSizeCheck.includes(accessoriesSize)) {
+                    return res.status(400).json({ status: 400, message: 'Accessory Size does not match.', data: null });
+                }
             }
 
             let rentalPrice;
@@ -1349,6 +1355,7 @@ exports.createBooking = async (req, res) => {
                 isSubscription: subscriptionMonths ? true : false,
                 subscriptionMonths,
                 accessories: accessoriesId,
+                accessoriesSize,
                 accessoriesPrice,
                 gst: gstPercentage._id
             });
@@ -1373,9 +1380,7 @@ exports.createBooking = async (req, res) => {
                 return res.status(404).json({ status: 404, message: 'BikeStoreRelation not found', data: null });
             }
 
-
             return res.status(201).json({ status: 201, message: 'Booking created successfully', data: newBooking });
-
         }
     } catch (error) {
         console.error(error);
@@ -1593,9 +1598,16 @@ exports.applyCouponToBooking = async (req, res) => {
             return res.status(400).json({ status: 400, message: 'Invalid or expired coupon code', data: null });
         }
 
+        if (booking.isSubscription === true) {
+            booking.discountPrice = Math.round(booking.price * (coupon.discount / 100));
+            booking.price = Math.round(booking.price - booking.discountPrice);
+            booking.totalPrice = booking.price + booking.taxAmount + booking.depositedMoney + booking.accessoriesPrice;
+        } else {
+            booking.discountPrice = Math.round(booking.totalPrice * (coupon.discount / 100));
+            booking.totalPrice = Math.round(booking.totalPrice - booking.discountPrice);
+        }
+
         booking.offerCode = couponCode;
-        booking.discountPrice = Math.round(booking.totalPrice * (coupon.discount / 100));
-        booking.totalPrice = Math.round(booking.totalPrice - booking.discountPrice);
         booking.isCouponApplied = true;
 
         await booking.save();
@@ -1616,7 +1628,12 @@ exports.removeCouponFromBooking = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'Booking not found', data: null });
         }
 
-        booking.totalPrice = Math.round(booking.totalPrice + booking.discountPrice);
+        if (booking.isSubscription === true) {
+            booking.totalPrice = booking.price + booking.taxAmount + booking.depositedMoney + booking.accessoriesPrice + booking.discountPrice;
+            booking.price = booking.price + booking.discountPrice;
+        } else {
+            booking.totalPrice = Math.round(booking.totalPrice + booking.discountPrice);
+        }
 
         booking.offerCode = null;
         booking.discountPrice = 0;
@@ -1655,7 +1672,12 @@ exports.applyWalletToBooking = async (req, res) => {
             return res.status(400).json({ status: 400, message: 'Insufficient wallet balance', data: null });
         }
 
-        let walletAmountToUse = Math.min(booking.totalPrice * 0.4, user.wallet);
+        let walletAmountToUse;
+        if (booking.isSubscription === true) {
+            walletAmountToUse = Math.min(booking.price * 0.4, user.wallet);
+        } else {
+            walletAmountToUse = Math.min(booking.totalPrice * 0.4, user.wallet);
+        }
 
         walletAmountToUse = Math.round(walletAmountToUse);
 
@@ -1672,7 +1694,7 @@ exports.applyWalletToBooking = async (req, res) => {
 
         await booking.save();
 
-        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! you use your wallet balance ${walletAmountToUse}.`;
+        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! You used your wallet balance ${walletAmountToUse}.`;
         const welcomeNotification = new Notification({
             recipient: booking.user._id,
             content: welcomeMessage,
@@ -1831,11 +1853,22 @@ const calculateExtendPrice = async (bookingId, extendedDropOffDate, extendedDrop
             extendedBooking.dropOffTime,
             extendedDropOffTime
         );
+        console.log("extendDurationInDays***", extendDurationInDays);
 
         const pricingInfo = await getPricingInfo(extendedBooking.bike);
-
-        const extendPrice = pricingInfo.extendPrice * extendDurationInDays;
+        let extendPrice = pricingInfo.extendPrice;
         console.log("extendPrice1***", extendPrice);
+
+        if (extendDurationInDays <= 5) {
+            extendPrice = extendPrice * extendDurationInDays;
+        } else if (extendDurationInDays > 5 && extendDurationInDays <= 8) {
+            extendPrice = extendPrice * 24;
+        } else if (extendDurationInDays > 8) {
+            extendPrice = extendPrice * 48;
+        }
+
+        // const extendPrice = pricingInfo.extendPrice /* extendDurationInDays*/;
+        console.log("extendPrice2***", extendPrice);
         return extendPrice;
     } catch (error) {
         console.error("Error calculating extend price:", error.message);
@@ -1857,20 +1890,28 @@ exports.extendBooking = async (req, res) => {
         if (isNaN(extendDateTime.getTime())) {
             return res.status(400).json({ message: 'Invalid extended drop-off date or time' });
         }
-        console.log("extendedDropOffDate", extendedDropOffDate);
-        console.log("extendedDropOffTime", extendedDropOffTime);
-        console.log("extendDateTime", extendDateTime);
 
         const pickupDate = extendedBooking.pickupDate.toISOString().split('T')[0];
-        console.log("pickupDate", extendedBooking.pickupDate.toISOString().split('T')[0])
-
         const pickupTime = extendedBooking.pickupTime;
-        console.log("pickupTime", pickupTime)
-
         const pickupDateTime = new Date(`${pickupDate}T${pickupTime}`);
-        const timeDifference = extendDateTime - pickupDateTime;
+
+        if (extendDateTime <= pickupDateTime) {
+            return res.status(400).json({ message: 'Extended drop-off date and time must be after the pickup date and time' });
+        }
+
+        const dropOffDate = extendedBooking.dropOffDate.toISOString().split('T')[0];
+        const dropOffTime = extendedBooking.dropOffTime;
+        const dropOffDateTime = new Date(`${dropOffDate}T${dropOffTime}`);
+
+        if (extendDateTime <= dropOffDateTime) {
+            return res.status(400).json({ message: 'Extended drop-off date and time must be after the drop date and time' });
+        }
+
+        const timeDifference = extendDateTime - dropOffDateTime;
         console.log("pickupDateTime", pickupDateTime);
+        console.log("dropOffDateTime", dropOffDateTime);
         console.log("timeDifference", timeDifference);
+
         if (isNaN(timeDifference)) {
             return res.status(400).json({ message: 'Invalid time difference calculation' });
         }
@@ -1882,9 +1923,11 @@ exports.extendBooking = async (req, res) => {
         }
 
         const extendPrice = await calculateExtendPrice(bookingId, extendedDropOffDate, extendedDropOffTime);
+        console.log("extendPrice3***", extendPrice);
+        console.log("extendedBooking.totalPrice***", extendedBooking.totalPrice);
 
         const isAvailable = await isBikeAvailableForPeriod(
-            extendedBooking.car,
+            extendedBooking.bike,
             extendedBooking.pickupDate,
             extendedBooking.dropOffDate,
             extendedBooking.pickupTime,
@@ -1918,7 +1961,6 @@ exports.extendBooking = async (req, res) => {
         });
     }
 };
-
 
 exports.cancelBooking1 = async (req, res) => {
     try {
@@ -2014,6 +2056,16 @@ exports.cancelBooking = async (req, res) => {
             type: 'welcome',
         });
         await welcomeNotification.save();
+
+        const bikeStoreRelation = await BikeStoreRelation.findOneAndUpdate(
+            { bike: booking.bike },
+            { $inc: { totalNumberOfBookedBikes: -1 } },
+            { new: true }
+        );
+
+        if (!bikeStoreRelation) {
+            return res.status(404).json({ status: 404, message: 'BikeStoreRelation not found', data: null });
+        }
 
         return res.status(200).json({ status: 200, message: 'Booking cancelled successfully', data: booking });
     } catch (error) {
@@ -2241,6 +2293,30 @@ exports.markNotificationAsRead = async (req, res) => {
         return res.status(200).json({ status: 200, message: 'Notification marked as read', data: notification });
     } catch (error) {
         return res.status(500).json({ status: 500, message: 'Error marking notification as read', error: error.message });
+    }
+};
+
+exports.markAllNotificationsAsRead = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const notifications = await Notification.updateMany(
+            { recipient: userId, },
+            { status: 'read' }
+        );
+
+        if (!notifications) {
+            return res.status(404).json({ status: 404, message: 'No notifications found for the user' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'All notifications marked as read for the user', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error marking notifications as read', error: error.message });
     }
 };
 
@@ -2672,13 +2748,23 @@ exports.createOrder = async (req, res) => {
                 paymentMethod,
             });
 
-            const welcomeMessage = `Welcome, ${Order.user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
+            const welcomeMessage = `Welcome, ${newOrder.user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
             const welcomeNotification = new Notification({
-                recipient: Order.user._id,
+                recipient: newOrder.user._id,
                 content: welcomeMessage,
                 type: 'welcome',
             });
             await welcomeNotification.save();
+
+            const accessoryStoreRelation = await BikeStoreRelation.findOneAndUpdate(
+                { accessory: newOrder.items.accessory },
+                { $inc: { totalNumberOfBookedAccessory: 1 } },
+                { new: true }
+            );
+
+            if (!accessoryStoreRelation) {
+                return res.status(404).json({ status: 404, message: 'accessoryStoreRelation not found', data: null });
+            }
 
             return res.status(201).json({
                 status: 201,
@@ -2853,6 +2939,80 @@ exports.getSubjectsCategoryById = async (req, res) => {
     }
 };
 
+exports.overAllSearch = async (req, res) => {
+    try {
+        const query = req.query.search;
+        const BikeResults = await Bike.find({ $or: [{ brand: { $regex: query, $options: 'i' } }, { model: { $regex: query, $options: 'i' } }] });
+        const AccessoryResults = await Accessory.find({ name: { $regex: query, $options: 'i' } });
+        const StoreResults = await Store.find({ name: { $regex: query, $options: 'i' } });
+        const combinedResults = [...BikeResults, ...AccessoryResults, ...StoreResults];
+        const uniqueResults = Array.from(new Set(combinedResults.map(result => result.name)))
+            .map(name => combinedResults.find(result => result.name === name));
+        const response = {
+            Bikes: uniqueResults.filter(result => result instanceof Bike).map(result => ({
+                type: 'Bike',
+                data: result,
+            })),
+            Accessory: uniqueResults.filter(result => result instanceof Accessory).map(result => ({
+                type: 'Accessory',
+                data: result,
+            })),
+            Store: uniqueResults.filter(result => result instanceof Store).map(result => ({
+                type: 'Store',
+                data: result,
+            })),
+        };
+        return res.status(200).json({ message: "Search result.", status: 200, data: response });
+    } catch (error) {
+        console.error(error);
+        return res.status(501).send({ status: 501, message: "Server error.", data: {} });
+    }
+}
+
+exports.filterSearch = async (req, res) => {
+    try {
+        const { minPrice, maxPrice, sortBy, premiumBike } = req.query;
+
+        let filter = {};
+
+        if (minPrice && maxPrice) {
+            filter.rentalPrice = { $gte: minPrice, $lte: maxPrice };
+        }
+
+        if (premiumBike) {
+            filter.isPremium = premiumBike === 'true';
+        }
+
+        let filteredBikes = await Bike.find(filter);
+
+        for (let i = 0; i < filteredBikes.length; i++) {
+            const bike = filteredBikes[i];
+            const bookingCount = await Booking.countDocuments({ bike: bike._id });
+            bike.bookingCount = bookingCount;
+        }
+
+        if (sortBy === 'topBooked') {
+            filteredBikes.sort((a, b) => b.bookingCount - a.bookingCount);
+        } else if (sortBy === 'priceLowToHigh') {
+            filteredBikes.sort((a, b) => a.rentalPrice - b.rentalPrice);
+        } else if (sortBy === 'priceHighToLow') {
+            filteredBikes.sort((a, b) => b.rentalPrice - a.rentalPrice);
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: 'Filtered search results',
+            data: filteredBikes
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Server error while filtering search results',
+            data: null
+        });
+    }
+};
 
 
 

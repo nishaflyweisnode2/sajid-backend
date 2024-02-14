@@ -1371,7 +1371,7 @@ exports.deleteAccessoryCategory = async (req, res) => {
 
 exports.createAccessory = async (req, res) => {
     try {
-        const { name, description, categoryId, price, stock, status } = req.body;
+        const { name, description, categoryId, price, stock, size, status } = req.body;
 
         if (!req.file) {
             return res.status(400).json({ status: 400, error: "Image file is required" });
@@ -1389,6 +1389,7 @@ exports.createAccessory = async (req, res) => {
             price,
             stock,
             image: req.file.path,
+            size,
             status
         });
 
@@ -1433,7 +1434,7 @@ exports.getAccessoryById = async (req, res) => {
 exports.updateAccessory = async (req, res) => {
     try {
         const accessoryId = req.params.accessoryId;
-        const { name, description, categoryId, price, stock, status } = req.body;
+        const { name, description, categoryId, price, stock, size, status } = req.body;
 
         let imagePath;
 
@@ -1448,7 +1449,7 @@ exports.updateAccessory = async (req, res) => {
 
         const updatedAccessory = await Accessory.findByIdAndUpdate(
             accessoryId,
-            { name, description, categoryId, price, stock, status, image: imagePath, },
+            { name, description, categoryId, price, stock, size, status, image: imagePath, },
             { new: true }
         ).populate('category');
 

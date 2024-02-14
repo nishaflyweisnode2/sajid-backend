@@ -179,6 +179,9 @@ const bookingSchema = new mongoose.Schema(
         ifscCode: {
             type: String,
         },
+        accessoriesSize: {
+            type: String,
+        },
 
     },
     { timestamps: true }

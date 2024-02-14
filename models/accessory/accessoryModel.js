@@ -20,6 +20,9 @@ const accessorySchema = new mongoose.Schema({
     stock: {
         type: Number,
     },
+    size: {
+        type: [String],
+    },
     status: {
         type: Boolean,
         default: false

@@ -67,6 +67,7 @@ module.exports = (app) => {
     app.get('/api/v1/user/inquiries/:inquiryId', [authJwt.verifyToken], auth.getInquiryById);
     app.put('/api/v1/user/inquiries/:inquiryId', [authJwt.verifyToken], auth.replyToInquiry);
     app.put('/api/v1/user/notifications/:notificationId', [authJwt.verifyToken], auth.markNotificationAsRead);
+    app.put('/api/v1/user/notifications/markAll/read', [authJwt.verifyToken], auth.markAllNotificationsAsRead);
     app.get('/api/v1/user/notifications/user/:userId', [authJwt.verifyToken], auth.getNotificationsForUser);
     app.get('/api/v1/user/notifications/user', [authJwt.verifyToken], auth.getAllNotificationsForUser);
     app.get('/api/v1/user/terms-and-conditions', [authJwt.verifyToken], auth.getAllTermAndCondition);
@@ -88,5 +89,10 @@ module.exports = (app) => {
     app.delete('/api/v1/user/order/:orderId', [authJwt.verifyToken], auth.deleteOrder);
     app.get('/api/v1/user/subject/categories', [authJwt.verifyToken], auth.getAllSubjectsCategories);
     app.get('/api/v1/user/subject/categories/:subjectId', [authJwt.verifyToken], auth.getSubjectsCategoryById);
+    app.get('/api/v1/user/get/search', [authJwt.verifyToken], auth.overAllSearch);
+    app.get('/api/v1/user/get/filter', [authJwt.verifyToken], auth.filterSearch);
+
+
+
 
 }
