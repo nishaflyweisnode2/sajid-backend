@@ -50,6 +50,7 @@ module.exports = (app) => {
     app.get('/api/v1/user/bike/availability', [authJwt.verifyToken], auth.checkBikeAvailability);
     app.get('/api/v1/user/bike/availability/byBikeId', [authJwt.verifyToken], auth.checkBikeAvailabilityByBikeId);
     app.post("/api/v1/user/booking/create", [authJwt.verifyToken], auth.createBooking);
+    app.get('/api/v1/user/all/bookings/user', [authJwt.verifyToken], auth.getAllBookingsByUser);
     app.get('/api/v1/user/bookings/user', [authJwt.verifyToken], auth.getBookingsByUser);
     app.get('/api/v1/user/bookings/user/:bookingId', [authJwt.verifyToken], auth.getBookingsById);
     app.get('/api/v1/user/bookings/completed/user', [authJwt.verifyToken], auth.getCompletedBookingsByUser);

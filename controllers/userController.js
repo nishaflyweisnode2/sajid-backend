@@ -1499,7 +1499,7 @@ async function checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime
     return existingBookings.length === 0;
 }
 
-exports.getBookingsByUser = async (req, res) => {
+exports.getAllBookingsByUser = async (req, res) => {
     try {
         const userId = req.user._id;
         console.log(userId);
@@ -1510,6 +1510,38 @@ exports.getBookingsByUser = async (req, res) => {
         }
 
         const bookings = await Booking.find({ user: userId }).populate('bike user pickupLocation dropOffLocation');
+
+        // .populate({
+        //     path: 'bike',
+        //     select: 'modelName rentalPrice',
+        // })
+        // .populate({
+        //     path: 'user',
+        //     select: 'username email',
+        // })
+        // .populate({
+        //     path: 'pickupLocation dropOffLocation',
+        //     select: 'locationName address',
+        // });
+
+        return res.status(200).json({ status: 200, message: 'Bookings retrieved successfully', data: bookings });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getBookingsByUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        console.log(userId);
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bookings = await Booking.find({ user: userId, status: { $in: ['PENDING', 'APPROVED'] } }).populate('bike user pickupLocation dropOffLocation');
 
         // .populate({
         //     path: 'bike',
@@ -2184,7 +2216,7 @@ exports.getUpcomingBookingsByUser = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'User not found', data: null });
         }
 
-        const bookings = await Booking.find({ user: userId, pickupDate: { $gte: new Date() } }).populate('bike user pickupLocation dropOffLocation');
+        const bookings = await Booking.find({ user: userId, status: { $in: ['PENDING', 'APPROVED'] }, pickupDate: { $gte: new Date() } }).populate('bike user pickupLocation dropOffLocation');
         console.log(bookings);
         // .populate({
         //     path: 'bike',
