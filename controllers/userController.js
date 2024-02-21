@@ -717,7 +717,19 @@ exports.getAccessoryCategoryById = async (req, res) => {
 
 exports.getAllAccessories = async (req, res) => {
     try {
-        const accessories = await Accessory.find().populate('category');
+        const accessoriesStore = await BikeStoreRelation.find({
+            accessory: { $exists: true },
+        });
+
+        const availableAccessoriesIds = accessoriesStore.map(relation => relation.accessory);
+
+        console.log("availableAccessoriesIds", availableAccessoriesIds);
+
+        if (availableAccessoriesIds.length === 0) {
+            return res.status(200).json({ status: 200, data: [] });
+        }
+
+        const accessories = await Accessory.find({ _id: { $in: availableAccessoriesIds } }).populate('category');
 
         return res.status(200).json({
             status: 200,
@@ -733,13 +745,32 @@ exports.getAllAccessories = async (req, res) => {
 exports.getAccessoryById = async (req, res) => {
     try {
         const accessoryId = req.params.accessoryId;
+
         const accessory = await Accessory.findById(accessoryId).populate('category');
 
         if (!accessory) {
             return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
         }
 
-        return res.status(200).json({ status: 200, message: 'Accessory retrieved successfully', data: accessory });
+        const accessoryRelations = await BikeStoreRelation.find({ accessory: accessoryId });
+
+        if (!accessoryRelations || accessoryRelations.length === 0) {
+            return res.status(404).json({ status: 404, message: 'Accessory relations not found', data: null });
+        }
+
+        const relations = await BikeStoreRelation.find({ accessory: accessory._id }).populate('store');
+        const pickupStores = relations.map(relation => relation.store);
+
+        if (pickupStores.length === 0) {
+            return res.status(404).json({ status: 404, message: 'No pickup stores found for the accessory', data: null });
+        }
+
+        const accessoriesDetails = {
+            accessory,
+            pickupStores,
+        };
+
+        return res.status(200).json({ status: 200, message: 'Accessory retrieved successfully', data: accessoriesDetails });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Server error', data: null });
@@ -833,7 +864,7 @@ exports.getStoreDetails = async (req, res) => {
     }
 };
 
-exports.getStoreDetailsForAccessories = async (req, res) => {
+exports.getStoreDetailsForAccessories1 = async (req, res) => {
     try {
         const { accessoriesId } = req.params;
 
@@ -866,7 +897,38 @@ exports.getStoreDetailsForAccessories = async (req, res) => {
     }
 };
 
-exports.checkBikeAvailability = async (req, res) => {
+exports.getStoreDetailsForAccessories = async (req, res) => {
+    try {
+        const { accessoriesId } = req.params;
+
+        const accessories = await Accessory.findById(accessoriesId);
+        if (!accessories) {
+            return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+        }
+
+        const relations = await BikeStoreRelation.find({
+            accessory: accessories._id,
+        }).populate('store');
+
+        const pickupStores = relations.map(relation => relation.store);
+
+        if (pickupStores.length === 0) {
+            return res.status(404).json({ status: 404, message: 'No pickup stores found for the accessory', data: null });
+        }
+
+        const accessoriesDetails = {
+            accessories,
+            pickupStores,
+        };
+
+        return res.status(200).json({ status: 200, data: accessoriesDetails });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.checkBikeAvailability1 = async (req, res) => {
     try {
         const { pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
 
@@ -956,6 +1018,94 @@ exports.checkBikeAvailability = async (req, res) => {
         });
 
         return res.status(200).json({ status: 200, data: availableBikes });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability' });
+    }
+};
+
+exports.checkBikeAvailability = async (req, res) => {
+    try {
+        const { pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
+
+        const startDateTime = new Date(`${pickupDate}T${pickupTime}`);
+        const endDateTime = new Date(`${dropOffDate}T${dropOffTime}`);
+
+        console.log("startDateTime", startDateTime);
+        console.log("endDateTime", endDateTime);
+
+        const bikeStoreRelations = await BikeStoreRelation.find({
+            bike: { $exists: true },
+        });
+
+        const availableBikeIds = bikeStoreRelations.map(relation => relation.bike);
+
+        console.log("availableBikeIds", availableBikeIds);
+
+        if (availableBikeIds.length === 0) {
+            return res.status(200).json({ status: 200, data: [] });
+        }
+
+        const bookedBikes = await Booking.find({
+            bike: { $in: availableBikeIds },
+            isTripCompleted: false,
+            $and: [
+                {
+                    $or: [
+                        { pickupTime: { $lte: dropOffTime }, dropOffTime: { $gte: pickupTime } },
+                        { pickupTime: { $gte: pickupTime }, dropOffTime: { $lte: dropOffTime } }
+                    ]
+                },
+                {
+                    $or: [
+                        { pickupDate: { $lte: dropOffDate }, dropOffDate: { $gte: pickupDate } },
+                        { pickupDate: { $gte: pickupDate }, dropOffDate: { $lte: dropOffDate } }
+                    ]
+                },
+                {
+                    $or: [
+                        { status: 'PENDING' },
+                        { isTripCompleted: false },
+                        { paymentStatus: 'PENDING' },
+                        { isSubscription: false },
+                        {
+                            isTimeExtended: true, timeExtendedDropOffTime: { $gte: startDateTime, $lte: endDateTime }
+                        }
+                    ]
+                }
+            ]
+        });
+
+        console.log("bookedBikes", bookedBikes);
+
+        const bookedBikeIds = bookedBikes.map(booking => booking.bike);
+
+        console.log("bookedBikeIds", bookedBikeIds);
+
+        const availableBikes = await Bike.find({
+            _id: { $in: availableBikeIds },
+            isOnTrip: false,
+            isAvailable: true,
+            nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime }
+        });
+
+        const bikesWithActiveSubscription = await Booking.find({
+            bike: { $in: availableBikeIds },
+            isTripCompleted: false,
+            isSubscription: true,
+            $or: [
+                { $and: [{ pickupTime: { $lte: dropOffTime } }, { dropOffTime: { $gte: pickupTime } }] },
+                { $and: [{ pickupTime: { $gte: pickupTime } }, { dropOffTime: { $lte: dropOffTime } }] }
+            ]
+        });
+
+        const bikesWithActiveSubscriptionIds = bikesWithActiveSubscription.map(subscription => subscription.bike);
+
+        const filteredAvailableBikes = availableBikes.filter(bike => !bikesWithActiveSubscriptionIds.includes(String(bike._id)));
+
+        console.log("filteredAvailableBikes", filteredAvailableBikes);
+
+        return res.status(200).json({ status: 200, data: filteredAvailableBikes });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability' });
@@ -1072,7 +1222,9 @@ exports.checkBikeAvailabilityByBikeId = async (req, res) => {
                             { isTripCompleted: false },
                             { paymentStatus: 'PENDING' },
                             { isSubscription: false },
-                            { isTimeExtended: true, timeExtendedDropOffTime: { $gte: startDateTime, $lte: endDateTime } }
+                            {
+                                isTimeExtended: true, timeExtendedDropOffTime: { $gte: startDateTime, $lte: endDateTime }
+                            }
                         ]
                     }
                 ]
