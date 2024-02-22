@@ -2850,15 +2850,6 @@ exports.createOrder = async (req, res) => {
 
         if (storeId) {
             const storeRelation = await BikeStoreRelation.find({ store: storeId });
-            if (!storeRelation) {
-                return res.status(404).json({
-                    status: 404,
-                    message: 'Store relation not found for this User and Store',
-                    data: null,
-                });
-            }
-            console.log("storeRelation", storeRelation);
-
             if (!storeRelation || storeRelation.length === 0) {
                 return res.status(404).json({
                     status: 404,
@@ -2883,17 +2874,47 @@ exports.createOrder = async (req, res) => {
                     });
                 }
 
+                if (!accessoryInStore || accessoryInStore.totalNumberOfBookedAccessory >= accessoryInStore.totalNumberOfAccessory) {
+                    return res.status(400).json({
+                        status: 400,
+                        message: `Product ${item.accessory} is currently out of stock`,
+                        data: null,
+                    });
+                }
+
                 item.price = accessory.price || 0;
                 totalPrice += item.price * item.quantity;
             }
 
             const newOrder = await Order.create({
-                user: user._id,
+                user: userId,
                 items,
                 totalPrice,
                 storeId,
                 paymentMethod,
             });
+
+            const accessoryIds = newOrder.items.map(item => item.accessory);
+
+            const welcomeMessage = `Welcome, ${user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
+            const welcomeNotification = new Notification({
+                recipient: newOrder.user._id,
+                content: welcomeMessage,
+                type: 'welcome',
+            });
+            await welcomeNotification.save();
+
+            for (const item of newOrder.items) {
+                const accessoryStoreRelation = await BikeStoreRelation.findOneAndUpdate(
+                    { accessory: item.accessory },
+                    { $inc: { totalNumberOfBookedAccessory: 1 } },
+                    { new: true }
+                );
+
+                if (!accessoryStoreRelation) {
+                    return res.status(404).json({ status: 404, message: 'Accessory store relation not found', data: null });
+                }
+            }
 
             return res.status(201).json({
                 status: 201,
@@ -2925,14 +2946,14 @@ exports.createOrder = async (req, res) => {
             }
 
             const newOrder = await Order.create({
-                user: user._id,
+                user: userId,
                 items,
                 totalPrice,
                 shippingAddress,
                 paymentMethod,
             });
 
-            const welcomeMessage = `Welcome, ${newOrder.user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
+            const welcomeMessage = `Welcome, ${user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
             const welcomeNotification = new Notification({
                 recipient: newOrder.user._id,
                 content: welcomeMessage,
@@ -2940,14 +2961,16 @@ exports.createOrder = async (req, res) => {
             });
             await welcomeNotification.save();
 
-            const accessoryStoreRelation = await BikeStoreRelation.findOneAndUpdate(
-                { accessory: newOrder.items.accessory },
-                { $inc: { totalNumberOfBookedAccessory: 1 } },
-                { new: true }
-            );
+            for (const item of newOrder.items) {
+                const accessoryStoreRelation = await BikeStoreRelation.findOneAndUpdate(
+                    { accessory: item.accessory },
+                    { $inc: { totalNumberOfBookedAccessory: 1 } },
+                    { new: true }
+                );
 
-            if (!accessoryStoreRelation) {
-                return res.status(404).json({ status: 404, message: 'accessoryStoreRelation not found', data: null });
+                if (!accessoryStoreRelation) {
+                    return res.status(404).json({ status: 404, message: 'Accessory store relation not found', data: null });
+                }
             }
 
             return res.status(201).json({

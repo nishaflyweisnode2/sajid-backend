@@ -1254,6 +1254,30 @@ exports.markNotificationAsRead = async (req, res) => {
     }
 };
 
+exports.markAllNotificationsAsRead = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const notifications = await Notification.updateMany(
+            { recipient: userId, },
+            { status: 'read' }
+        );
+
+        if (!notifications) {
+            return res.status(404).json({ status: 404, message: 'No notifications found for the user' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'All notifications marked as read for the user', data: notifications });
+    } catch (error) {
+        return res.status(500).json({ status: 500, message: 'Error marking notifications as read', error: error.message });
+    }
+};
+
 exports.getNotificationsById = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -1275,7 +1299,7 @@ exports.getNotificationsById = async (req, res) => {
 exports.getAllNotificationsForUser = async (req, res) => {
     try {
         const userId = req.user._id;
-
+        console.log(userId);
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found', data: null });

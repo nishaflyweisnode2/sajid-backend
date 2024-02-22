@@ -45,8 +45,9 @@ module.exports = (app) => {
     app.delete('/api/v1/partner/order/:orderId', [authJwt.isPartner], auth.deleteOrder);
     app.get('/api/v1/partner/QRCode/get', [authJwt.isPartner], auth.getQrCodeForVendor);
     app.put('/api/v1/partner/notifications/:notificationId', [authJwt.isPartner], auth.markNotificationAsRead);
+    app.put('/api/v1/partner/notifications/markAll/read', [authJwt.isPartner], auth.markAllNotificationsAsRead);
     app.get('/api/v1/partner/notifications/user/:notificationId', [authJwt.isPartner], auth.getNotificationsById);
-    app.get('/api/v1/partner/notifications/user', [authJwt.isPartner], auth.getAllNotificationsForUser);
+    app.get('/api/v1/partner/all/notifications/user', [authJwt.isPartner], auth.getAllNotificationsForUser);
 
 
 
