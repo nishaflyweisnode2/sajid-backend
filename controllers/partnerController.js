@@ -205,6 +205,7 @@ exports.getUpcomingBookingsForPartner = async (req, res) => {
             bike: { $in: bikeObjectIds },
             paymentStatus: 'PAID',
             isTripCompleted: false,
+            status: 'PENDING',
             $or: [
                 {
                     $and: [
@@ -883,6 +884,14 @@ exports.updateTripEndDetails = async (req, res) => {
 
         if (!bikeStoreRelation) {
             return res.status(404).json({ status: 404, message: 'BikeStoreRelation not found', data: null });
+        }
+
+        if (updatedBooking) {
+            await Bike.findByIdAndUpdate(
+                updatedBooking.bike,
+                { isOnTrip: false },
+                { new: true }
+            );
         }
 
         return res.status(200).json({ status: 200, message: 'Trip end details updated successfully', data: updatedBooking });

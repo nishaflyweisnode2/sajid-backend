@@ -1038,8 +1038,12 @@ exports.checkBikeAvailability = async (req, res) => {
             bike: { $exists: true },
         });
 
-        const availableBikeIds = bikeStoreRelations.map(relation => relation.bike);
+        const filteredBikeStoreRelations = bikeStoreRelations.filter(relation => {
+            return relation.totalNumberOfBikes !== relation.totalNumberOfBookedBikes;
+        });
+        console.log("filteredBikeStoreRelations", filteredBikeStoreRelations);
 
+        const availableBikeIds = filteredBikeStoreRelations.map(relation => relation.bike);
         console.log("availableBikeIds", availableBikeIds);
 
         if (availableBikeIds.length === 0) {
@@ -1896,7 +1900,13 @@ exports.applyWalletToBooking = async (req, res) => {
 exports.updatePaymentStatus = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;
+        const userId = req.user._id;
         const { paymentStatus, referenceId } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
 
         const updatedBooking = await Booking.findOne({ _id: bookingId });
 
@@ -1923,9 +1933,8 @@ exports.updatePaymentStatus = async (req, res) => {
         }
 
         await updatedBooking.save();
-
         if (paymentStatus === 'PAID') {
-            const welcomeMessage = `Welcome, ${updatedBooking.user.mobileNumber}! Thank you for Making Payment Your Payment is Paid.`;
+            const welcomeMessage = `Welcome, ${user.mobileNumber}! Thank you for Making Payment Your Payment is Paid.`;
             const welcomeNotification = new Notification({
                 recipient: updatedBooking.user._id,
                 content: welcomeMessage,
@@ -1933,7 +1942,7 @@ exports.updatePaymentStatus = async (req, res) => {
             });
             await welcomeNotification.save();
         } else {
-            const welcomeMessage = `Welcome, ${updatedBooking.user.mobileNumber}! Your Payment is Failed.`;
+            const welcomeMessage = `Welcome, ${user.mobileNumber}! Your Payment is Failed.`;
             const welcomeNotification = new Notification({
                 recipient: updatedBooking.user._id,
                 content: welcomeMessage,
@@ -2103,7 +2112,7 @@ exports.extendBooking = async (req, res) => {
         const minTimeDifference = 3600000;
         const maxTimeDifference = 2 * 24 * 3600000;
         if (timeDifference < minTimeDifference || timeDifference > maxTimeDifference) {
-            return res.status(400).json({ message: 'Extended booking time must be between 1 hour and 2 days' });
+            return res.status(400).json({ message: 'Extended booking time must be between 1 hour or 2 days' });
         }
 
         const extendPrice = await calculateExtendPrice(bookingId, extendedDropOffDate, extendedDropOffTime);
@@ -3063,7 +3072,13 @@ exports.updateOrder = async (req, res) => {
             });
         }
 
-        const welcomeMessage = `Welcome, ${updatedOrder.user.mobileNumber}! Thank you for Order your order amount is ${newOrder.totalPrice} and your payment method ${newOrder.paymentMethod}`;
+        for (const item of updatedOrder.items) {
+            if (item.accessory) {
+                await Accessory.findByIdAndUpdate(item.accessory._id, { $inc: { stock: -1 } });
+            }
+        }
+
+        const welcomeMessage = `Welcome, ${updatedOrder.user.mobileNumber}! Thank you for your order. The amount is ${updatedOrder.totalPrice} and your payment method is ${updatedOrder.paymentMethod}.`;
         const welcomeNotification = new Notification({
             recipient: updatedOrder.user._id,
             content: welcomeMessage,
