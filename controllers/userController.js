@@ -1036,7 +1036,7 @@ exports.checkBikeAvailability = async (req, res) => {
 
         const bikeStoreRelations = await BikeStoreRelation.find({
             bike: { $exists: true },
-        });
+        }).populate('bike');
 
         const filteredBikeStoreRelations = bikeStoreRelations.filter(relation => {
             return relation.totalNumberOfBikes !== relation.totalNumberOfBookedBikes;
@@ -1109,7 +1109,13 @@ exports.checkBikeAvailability = async (req, res) => {
 
         console.log("filteredAvailableBikes", filteredAvailableBikes);
 
-        return res.status(200).json({ status: 200, data: filteredAvailableBikes });
+        const bikeIds = filteredAvailableBikes.map(bike => bike._id);
+
+        const bikeStoreRelationsStock = await BikeStoreRelation.find({
+            bike: { $in: bikeIds },
+        }).populate('bike store accessory');
+
+        return res.status(200).json({ status: 200, data: bikeStoreRelationsStock });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability' });
@@ -1183,18 +1189,23 @@ exports.checkBikeAvailabilityByBikeId1 = async (req, res) => {
     }
 };
 
-exports.checkBikeAvailabilityByBikeId = async (req, res) => {
+exports.checkBikeAvailabilityByBikeId2 = async (req, res) => {
     try {
         const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
 
         const startDateTime = new Date(`${pickupDate}T${pickupTime}`);
         const endDateTime = new Date(`${dropOffDate}T${dropOffTime}`);
 
-        const bikeStoreRelation = await BikeStoreRelation.findOne({ bike: bikeId });
+        const bikeStoreRelation = await BikeStoreRelation.findOne({ bike: bikeId }).populate('bike store accessory');
         if (!bikeStoreRelation) {
             return res.status(404).json({ status: 404, message: 'Bike not found in the store' });
         }
         console.log("bikeStoreRelation", bikeStoreRelation);
+        for (let i = 0; i < bikeStoreRelation.length; i++) {
+            if (bikeStoreRelation.totalNumberOfBikes === bikeStoreRelation.totalNumberOfBookedBikes) {
+                return res.status(404).json({ status: 404, message: 'Bike is out of stock' });
+            }
+        }
 
         if (bikeStoreRelation.totalNumberOfBikes >= 1) {
             const bike = await Bike.findOne({
@@ -1239,7 +1250,7 @@ exports.checkBikeAvailabilityByBikeId = async (req, res) => {
             }
 
             if (bike) {
-                return res.status(200).json({ status: 200, message: 'Bike is available', data: bike });
+                return res.status(200).json({ status: 200, message: 'Bike is available', data: { bike, bikeStoreRelation } });
             } else {
                 return res.status(200).json({ status: 200, message: 'Bike is not available' });
             }
@@ -1252,11 +1263,96 @@ exports.checkBikeAvailabilityByBikeId = async (req, res) => {
             });
 
             if (bike) {
-                return res.status(200).json({ status: 200, message: 'Bike is available', data: bike });
+                return res.status(200).json({ status: 200, message: 'Bike is available', data: { bike, bikeStoreRelation } });
             } else {
                 return res.status(200).json({ status: 200, message: 'Bike is not available' });
             }
         }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability by ID' });
+    }
+};
+
+exports.checkBikeAvailabilityByBikeId = async (req, res) => {
+    try {
+        const { bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime } = req.query;
+
+        const startDateTime = new Date(`${pickupDate}T${pickupTime}`);
+        const endDateTime = new Date(`${dropOffDate}T${dropOffTime}`);
+
+        const bikeStoreRelations = await BikeStoreRelation.find({ bike: bikeId }).populate('bike store accessory');
+
+        if (!bikeStoreRelations || bikeStoreRelations.length === 0) {
+            return res.status(404).json({ status: 404, message: 'Bike not found in any store' });
+        }
+
+        const bikeStoreMap = new Map();
+
+        for (const relation of bikeStoreRelations) {
+            const bikeAvailability = await Bike.findOne({
+                _id: bikeId,
+                isOnTrip: false,
+                isAvailable: true,
+                nextAvailableDateTime: { $gte: startDateTime, $lte: endDateTime }
+            });
+
+            if (relation.totalNumberOfBikes === relation.totalNumberOfBookedBikes) {
+                continue;
+            }
+
+            const bookedBike = await Booking.findOne({
+                bike: bikeId,
+                isTripCompleted: false,
+                $and: [
+                    {
+                        $or: [
+                            { pickupTime: { $lte: dropOffTime }, dropOffTime: { $gte: pickupTime } },
+                            { pickupTime: { $gte: pickupTime }, dropOffTime: { $lte: dropOffTime } }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { pickupDate: { $lte: dropOffDate }, dropOffDate: { $gte: pickupDate } },
+                            { pickupDate: { $gte: pickupDate }, dropOffDate: { $lte: dropOffDate } }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { status: 'PENDING' },
+                            { isTripCompleted: false },
+                            { paymentStatus: 'PENDING' },
+                            { isSubscription: false },
+                            {
+                                isTimeExtended: true, timeExtendedDropOffTime: { $gte: startDateTime, $lte: endDateTime }
+                            }
+                        ]
+                    }
+                ]
+            });
+
+            if (!bookedBike && bikeAvailability) {
+                if (!bikeStoreMap.has(bikeId)) {
+                    bikeStoreMap.set(bikeId, []);
+                }
+                bikeStoreMap.get(bikeId).push(relation);
+            }
+        }
+
+        if (bikeStoreMap.size === 0) {
+            return res.status(404).json({ status: 404, message: 'Bike is not available in any store for the specified duration' });
+        }
+
+        const responseData = [];
+
+        for (const [bikeId, stores] of bikeStoreMap.entries()) {
+            const bike = await Bike.findById(bikeId);
+            if (bike) {
+                responseData.push({ bike, stores });
+            }
+        }
+
+        return res.status(200).json({ status: 200, message: 'Bike is available', data: responseData });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability by ID' });
@@ -1419,14 +1515,23 @@ exports.createBooking = async (req, res) => {
                 return res.status(400).json({ status: 400, message: 'Bike not available', data: null });
             }
 
-            const checkBikeStoreRelation = await BikeStoreRelation.findOne({ bike: bikeId });
-            if (!checkBikeStoreRelation) {
-                return res.status(400).json({ status: 400, message: 'Bike not found in the store' });
+            const checkBikeStoreRelation = await BikeStoreRelation.find({ bike: bikeId });
+            if (checkBikeStoreRelation.length === 0) {
+                return res.status(400).json({ status: 400, message: 'Bike not found in any store' });
+            }
+            let atLeastOneStoreAvailable = false;
+            let relation;
+            for (relation of checkBikeStoreRelation) {
+                if (relation.totalNumberOfBookedBikes < relation.totalNumberOfBikes) {
+                    atLeastOneStoreAvailable = true;
+                    break;
+                }
             }
 
-            if (checkBikeStoreRelation.totalNumberOfBookedBikes === checkBikeStoreRelation.totalNumberOfBikes) {
-                return res.status(400).json({ status: 400, message: 'All bikes in the store are booked' });
+            if (!atLeastOneStoreAvailable) {
+                return res.status(400).json({ status: 400, message: 'All bikes in all stores are booked' });
             }
+            console.log("checkBikeStoreRelation", checkBikeStoreRelation);
 
             const isBikeAvailable = await checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime);
             if (!isBikeAvailable) {
@@ -1527,7 +1632,7 @@ exports.createBooking = async (req, res) => {
             await welcomeNotification.save();
 
             const bikeStoreRelation = await BikeStoreRelation.findOneAndUpdate(
-                { bike: newBooking.bike },
+                { bike: newBooking.bike, totalNumberOfBookedBikes: { $lt: relation.totalNumberOfBikes } },
                 { $inc: { totalNumberOfBookedBikes: 1 } },
                 { new: true }
             );
@@ -1596,7 +1701,7 @@ async function checkBikeAvailability1(bikeId, pickupDate, dropOffDate, pickupTim
     return existingBookings.length === 0;
 }
 
-async function checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime) {
+async function checkBikeAvailability2(bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime) {
     console.log("entry");
     const bikeStoreRelation = await BikeStoreRelation.findOne({ bike: bikeId });
     if (!bikeStoreRelation) {
@@ -1653,6 +1758,46 @@ async function checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime
     console.log("exist");
 
     return existingBookings.length === 0;
+}
+
+async function checkBikeAvailability(bikeId, pickupDate, dropOffDate, pickupTime, dropOffTime) {
+    const checkBikeStoreRelation = await BikeStoreRelation.find({ bike: bikeId });
+
+    if (checkBikeStoreRelation.length === 0) {
+        return { available: false, message: 'Bike not found in any store' };
+    }
+
+    let atLeastOneStoreAvailable = checkBikeStoreRelation.some(relation => relation.totalNumberOfBookedBikes < relation.totalNumberOfBikes);
+    console.log('***', atLeastOneStoreAvailable);
+    if (!atLeastOneStoreAvailable) {
+        return { available: false, message: 'All bikes in all stores are booked' };
+    }
+
+    const existingBookings = await Booking.find({
+        bike: bikeId,
+        $or: [
+            { pickupDate: { $lte: pickupDate }, dropOffDate: { $gte: pickupDate }, pickupTime: { $lte: pickupTime }, dropOffTime: { $gte: pickupTime } },
+            { pickupDate: { $lte: dropOffDate }, dropOffDate: { $gte: dropOffDate }, pickupTime: { $lte: dropOffTime }, dropOffTime: { $gte: dropOffTime } }
+        ],
+        isTripCompleted: false,
+        isSubscription: false
+    });
+
+    if (existingBookings.length > 0) {
+        return { available: false, message: 'Bike is already booked for the selected time period' };
+    }
+
+    const bike = await Bike.findOne({
+        _id: bikeId,
+        isOnTrip: false,
+        isAvailable: true
+    });
+
+    if (!bike) {
+        return { available: false, message: 'Bike is not available' };
+    }
+
+    return { available: true, message: 'Bike is available' };
 }
 
 exports.getAllBookingsByUser = async (req, res) => {
