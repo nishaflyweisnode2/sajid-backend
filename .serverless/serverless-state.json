@@ -179,7 +179,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/sajid-bike-backend/dev/1709015389900-2024-02-27T06:29:49.900Z/sajid-bike-backend.zip"
+                "S3Key": "serverless/sajid-bike-backend/dev/1709214598748-2024-02-29T13:49:58.748Z/sajid-bike-backend.zip"
               },
               "Handler": "server.handler",
               "Runtime": "nodejs18.x",
@@ -197,14 +197,14 @@
               "AppLogGroup"
             ]
           },
-          "AppLambdaVersion1WpM6D3Ov3SuWHgGvksur9hCnPMt2bOwvlv32TBjiQ": {
+          "AppLambdaVersionpCdkvp1fOnVwC7m6RcqMNAOQHF3cEtMQGLPUAQlYsoE": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "AppLambdaFunction"
               },
-              "CodeSha256": "Ezc55zTu4jG1qi4MTYONHEAZn3s3AcR3QbEOrt3Y4Y0="
+              "CodeSha256": "h+OxNKDCeBsk9yKKAZLQZjA+i6D4iAFCRf+P2nMuhhs="
             }
           },
           "ApiGatewayRestApi": {
@@ -425,7 +425,7 @@
               "AppLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1709015314523": {
+          "ApiGatewayDeployment1709214517835": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -490,7 +490,7 @@
           "AppLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "AppLambdaVersion1WpM6D3Ov3SuWHgGvksur9hCnPMt2bOwvlv32TBjiQ"
+              "Ref": "AppLambdaVersionpCdkvp1fOnVwC7m6RcqMNAOQHF3cEtMQGLPUAQlYsoE"
             },
             "Export": {
               "Name": "sls-sajid-bike-backend-dev-AppLambdaFunctionQualifiedArn"
@@ -671,7 +671,7 @@
         "timeout": 6,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "AppLambdaVersion1WpM6D3Ov3SuWHgGvksur9hCnPMt2bOwvlv32TBjiQ"
+        "versionLogicalId": "AppLambdaVersionpCdkvp1fOnVwC7m6RcqMNAOQHF3cEtMQGLPUAQlYsoE"
       }
     },
     "configValidationMode": "warn",
@@ -693,7 +693,7 @@
     "artifact": "C:\\Users\\Dev\\Downloads\\project\\sajid-backend.git\\.serverless\\sajid-bike-backend.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/sajid-bike-backend/dev/1709015389900-2024-02-27T06:29:49.900Z",
+    "artifactDirectoryName": "serverless/sajid-bike-backend/dev/1709214598748-2024-02-29T13:49:58.748Z",
     "artifact": "sajid-bike-backend.zip"
   }
 }

@@ -1041,13 +1041,11 @@ exports.checkBikeAvailability = async (req, res) => {
         const filteredBikeStoreRelations = bikeStoreRelations.filter(relation => {
             return relation.totalNumberOfBikes !== relation.totalNumberOfBookedBikes;
         });
-        console.log("filteredBikeStoreRelations", filteredBikeStoreRelations);
 
         const availableBikeIds = filteredBikeStoreRelations.map(relation => relation.bike);
-        console.log("availableBikeIds", availableBikeIds);
 
         if (availableBikeIds.length === 0) {
-            return res.status(200).json({ status: 200, data: [] });
+            return res.status(404).json({ status: 404, message: 'Bike is not available in any store for the specified duration' });
         }
 
         const bookedBikes = await Booking.find({
@@ -1080,11 +1078,7 @@ exports.checkBikeAvailability = async (req, res) => {
             ]
         });
 
-        console.log("bookedBikes", bookedBikes);
-
         const bookedBikeIds = bookedBikes.map(booking => booking.bike);
-
-        console.log("bookedBikeIds", bookedBikeIds);
 
         const availableBikes = await Bike.find({
             _id: { $in: availableBikeIds },
@@ -1107,15 +1101,37 @@ exports.checkBikeAvailability = async (req, res) => {
 
         const filteredAvailableBikes = availableBikes.filter(bike => !bikesWithActiveSubscriptionIds.includes(String(bike._id)));
 
-        console.log("filteredAvailableBikes", filteredAvailableBikes);
-
         const bikeIds = filteredAvailableBikes.map(bike => bike._id);
-
         const bikeStoreRelationsStock = await BikeStoreRelation.find({
             bike: { $in: bikeIds },
         }).populate('bike store accessory');
 
-        return res.status(200).json({ status: 200, data: bikeStoreRelationsStock });
+        const filteredBikeStoreRelations1 = bikeStoreRelationsStock.filter(relation => {
+            return relation.totalNumberOfBikes !== relation.totalNumberOfBookedBikes;
+        });
+        console.log("filteredBikeStoreRelations1", filteredBikeStoreRelations1);
+
+        const bikeStoreMap = new Map();
+
+        filteredBikeStoreRelations1.forEach(relation => {
+            const { bike, store } = relation;
+            if (!bikeStoreMap.has(bike._id.toString())) {
+                bikeStoreMap.set(bike._id.toString(), [store]);
+            } else {
+                bikeStoreMap.get(bike._id.toString()).push(store);
+            }
+        });
+
+        const responseData = [];
+
+        for (const [bikeId, stores] of bikeStoreMap.entries()) {
+            const bike = await Bike.findById(bikeId);
+            if (bike) {
+                responseData.push({ bike, stores });
+            }
+        }
+
+        return res.status(200).json({ status: 200, data: responseData });
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'An error occurred while checking Bike availability' });
@@ -1462,43 +1478,62 @@ exports.createBooking = async (req, res) => {
             return res.status(400).json({ status: 400, message: 'Invalid pickup date. Pickup date cannot be earlier than the current date.', data: null });
         }
 
-        const existingBookingPickup = await Booking.findOne({
-            bike: bikeId,
-            pickupDate,
-            pickupTime,
-            dropOffDate: { $gte: pickupDate },
-            isTripCompleted: false,
-            isSubscription: true,
-        });
+        const checkBikeStoreRelation = await BikeStoreRelation.find({ bike: bikeId });
+        if (checkBikeStoreRelation.length === 0) {
+            return res.status(400).json({ status: 400, message: 'Bike not found in any store' });
+        }
+        let atLeastOneStoreAvailable = false;
+        let relation;
+        for (relation of checkBikeStoreRelation) {
+            if (relation.totalNumberOfBookedBikes < relation.totalNumberOfBikes) {
+                atLeastOneStoreAvailable = true;
+                break;
+            }
+        }
 
-        const existingBookingDrop = await Booking.findOne({
-            bike: bikeId,
-            pickupDate: { $lte: dropOffDate },
-            dropOffDate,
-            dropOffTime,
-            isTripCompleted: false,
-            isSubscription: true,
-        });
+        if (!atLeastOneStoreAvailable) {
+            return res.status(400).json({ status: 400, message: 'All bikes in all stores are booked' });
+        }
+        console.log("checkBikeStoreRelation", checkBikeStoreRelation);
+        if (relation.totalNumberOfBookedBikes === relation.totalNumberOfBikes) {
+            const existingBookingPickup = await Booking.findOne({
+                bike: bikeId,
+                pickupDate,
+                pickupTime,
+                dropOffDate: { $gte: pickupDate },
+                isTripCompleted: false,
+                isSubscription: true,
+            });
 
-        const existingExtendedBookingPickup = await Booking.findOne({
-            bike: bikeId,
-            extendedDropOffDate: pickupDate || extendedDropOffDate,
-            extendedDropOffTime: pickupTime || extendedDropOffTime,
-            isTripCompleted: false,
-            isSubscription: true,
-        });
+            const existingBookingDrop = await Booking.findOne({
+                bike: bikeId,
+                pickupDate: { $lte: dropOffDate },
+                dropOffDate,
+                dropOffTime,
+                isTripCompleted: false,
+                isSubscription: true,
+            });
 
-        const existingExtendedBookingDrop = await Booking.findOne({
-            bike: bikeId,
-            pickupDate: { $lte: dropOffDate },
-            dropOffDate,
-            dropOffTime,
-            isTripCompleted: false,
-            isSubscription: true,
-        });
+            const existingExtendedBookingPickup = await Booking.findOne({
+                bike: bikeId,
+                extendedDropOffDate: pickupDate || extendedDropOffDate,
+                extendedDropOffTime: pickupTime || extendedDropOffTime,
+                isTripCompleted: false,
+                isSubscription: true,
+            });
 
-        if (existingBookingPickup || existingBookingDrop || existingExtendedBookingPickup || existingExtendedBookingDrop) {
-            return res.status(400).json({ status: 400, message: 'Bike is already booked for the specified pickup and/or drop-off date and time.', data: null, });
+            const existingExtendedBookingDrop = await Booking.findOne({
+                bike: bikeId,
+                pickupDate: { $lte: dropOffDate },
+                dropOffDate,
+                dropOffTime,
+                isTripCompleted: false,
+                isSubscription: true,
+            });
+
+            if (existingBookingPickup || existingBookingDrop || existingExtendedBookingPickup || existingExtendedBookingDrop) {
+                return res.status(400).json({ status: 400, message: 'Bike is already booked for the specified pickup and/or drop-off date and time.', data: null, });
+            }
         } else {
 
             const user = await User.findById(userId);
@@ -2337,6 +2372,13 @@ exports.cancelBooking1 = async (req, res) => {
 
 exports.cancelBooking = async (req, res) => {
     try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
         const bookingId = req.params.bookingId;
         const { refundPreference, upiId, accountNo, branchName, ifscCode } = req.body;
 
@@ -2386,8 +2428,7 @@ exports.cancelBooking = async (req, res) => {
         booking.ifscCode = ifscCode;
         booking.refund = savedRefund._id;
         await booking.save();
-
-        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! Your Booking is Cancel and your refund payment is initiated.`;
+        const welcomeMessage = `Welcome, ${user.mobileNumber}! Your Booking is Cancel and your refund payment is initiated.`;
         const welcomeNotification = new Notification({
             recipient: booking.user._id,
             content: welcomeMessage,
