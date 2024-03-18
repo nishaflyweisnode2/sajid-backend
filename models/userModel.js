@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema({
     },
     deviceToken: {
         type: String
-},
+    },
     completeProfile: {
         type: Boolean,
         default: false,
@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema({
     },
     userType: {
         type: String,
-        enum: ["ADMIN", "USER", "PARTNER"],
+        enum: ["ADMIN", "USER", "PARTNER", "FRANCHISE-PARTNER", "SUPPORT", "FINANCE"],
         default: "User"
     },
     refferalCode: {
@@ -71,6 +71,10 @@ const userSchema = new mongoose.Schema({
         default: 0,
     },
     uploadId: {
+        aadharCardNo: {
+            type: String,
+            default: null,
+        },
         frontImage: {
             type: String,
             default: null,
@@ -81,6 +85,10 @@ const userSchema = new mongoose.Schema({
         },
     },
     drivingLicense: {
+        drivingLicenseNo: {
+            type: String,
+            default: null,
+        },
         frontImage: {
             type: String,
             default: null,
@@ -94,8 +102,19 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    isRejectUser: {
+        type: Boolean,
+        default: false
+    },
+    remarks: {
+        type: String,
+    },
     qrCode: {
         type: String,
+    },
+    status: {
+        type: Boolean,
+        default: false
     },
 }, { timestamps: true });
 

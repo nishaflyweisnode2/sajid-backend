@@ -865,8 +865,6 @@ exports.updateTripEndDetails = async (req, res) => {
 
         booking.tripEndTime = new Date();
         booking.tripEndOtp = otp;
-        booking.isTripCompleted = true;
-        booking.status = "COMPLETED";
 
         const updatedBooking = await booking.save();
 
@@ -935,6 +933,8 @@ exports.approveTripEndDetailsVerifyOtp = async (req, res) => {
             bookingId,
             {
                 isTripEndOtp: true,
+                isTripCompleted: true,
+                status: "COMPLETED",
             },
             { new: true }
         );

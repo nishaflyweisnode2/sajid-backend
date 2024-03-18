@@ -92,6 +92,10 @@ module.exports = (app) => {
     app.get('/api/v1/user/subject/categories/:subjectId', [authJwt.verifyToken], auth.getSubjectsCategoryById);
     app.get('/api/v1/user/get/search', [authJwt.verifyToken], auth.overAllSearch);
     app.get('/api/v1/user/get/filter', [authJwt.verifyToken], auth.filterSearch);
+    app.get('/api/v1/user/top-picks', [authJwt.verifyToken], auth.topPickedBikes);
+    app.get('/api/v1/user/gst', [authJwt.verifyToken], auth.getAllGST);
+    app.get('/api/v1/user/gst/:id', [authJwt.verifyToken], auth.getGSTById);
+
 
 
 

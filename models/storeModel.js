@@ -29,6 +29,12 @@ const storeSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        userType: {
+            type: String,
+            enum: ["PARTNER", "FRANCHISE-PARTNER"],
+            // default: "PARTNER"
+        },
+
     },
     { timestamps: true }
 );

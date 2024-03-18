@@ -226,8 +226,10 @@ exports.updateDocuments = async (req, res) => {
                 $set: {
                     'uploadId.frontImage': uploadId.frontImage || null,
                     'uploadId.backImage': uploadId.backImage || null,
+                    'uploadId.aadharCardNo': uploadId.aadharCardNo || null,
                     'drivingLicense.frontImage': drivingLicense.frontImage || null,
                     'drivingLicense.backImage': drivingLicense.backImage || null,
+                    'drivingLicense.drivingLicenseNo': drivingLicense.drivingLicenseNo || null,
                 },
             },
             { new: true }
@@ -2062,7 +2064,7 @@ exports.applyWalletToBooking = async (req, res) => {
 
         await booking.save();
 
-        const welcomeMessage = `Welcome, ${booking.user.mobileNumber}! You used your wallet balance ${walletAmountToUse}.`;
+        const welcomeMessage = `Welcome, ${user.mobileNumber}! You used your wallet balance ${walletAmountToUse}.`;
         const welcomeNotification = new Notification({
             recipient: booking.user._id,
             content: welcomeMessage,
@@ -3422,5 +3424,45 @@ exports.filterSearch = async (req, res) => {
     }
 };
 
+exports.topPickedBikes = async (req, res) => {
+    try {
+        const topPicks = await Booking.aggregate([
+            { $group: { _id: '$bike', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 15 }
+        ]);
+
+        const bikeIds = topPicks.map(item => item._id);
+
+        const topPickedBikes = await Bike.find({ _id: { $in: bikeIds } });
+
+        return res.status(200).json({ status: 200, message: 'Top picked bikes retrieved successfully', data: topPickedBikes });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.getAllGST = async (req, res) => {
+    try {
+        const gstEntries = await GST.find();
+        return res.status(200).json({ status: 200, data: gstEntries });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
 
 
+exports.getGSTById = async (req, res) => {
+    try {
+        const gstEntry = await GST.findById(req.params.id);
+        if (!gstEntry) {
+            return res.status(404).json({ status: 404, message: 'GST entry not found', data: null });
+        }
+        return res.status(200).json({ status: 200, data: gstEntry });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};

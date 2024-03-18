@@ -16,17 +16,23 @@ module.exports = (app) => {
     app.post("/api/v1/admin/registration", auth.registration);
     app.post("/api/v1/admin/login", auth.signin);
     app.put("/api/v1/admin/update", [authJwt.isAdmin], auth.update);
+    app.put('/api/v1/admin/update-user/:id', [authJwt.isAdmin], auth.updateUserDetails);
+    app.put("/api/v1/admin/upload-id-picture/:id", [authJwt.isAdmin], profileImage.single('image'), auth.uploadIdPicture);
+    app.put("/api/v1/admin/update-documents/:id", [authJwt.isAdmin], auth.updateDocuments);
+    app.put("/api/v1/admin/upload-profile-picture/:id", [authJwt.isAdmin], profileImage.single('image'), auth.uploadProfilePicture);
     app.post("/api/v1/admin/city/cities", [authJwt.isAdmin], cityImage.single('image'), auth.createCity);
     app.get("/api/v1/admin/city/cities", [authJwt.isAdmin], auth.getAllCities);
     app.get("/api/v1/admin/city/cities/:id", [authJwt.isAdmin], auth.getCityById);
     app.put("/api/v1/admin/city/cities/:id", [authJwt.isAdmin], cityImage.single('image'), auth.updateCityById);
     app.delete("/api/v1/admin/city/cities/:id", [authJwt.isAdmin], auth.deleteCityById);
     app.get("/api/v1/admin/profile", [authJwt.isAdmin], auth.getAllUser);
+    app.get("/api/v1/admin/get/userByType/:userType", [authJwt.isAdmin], auth.getAllUserByType);
     app.get("/api/v1/admin/profile/:userId", [authJwt.isAdmin], auth.getUserById);
     app.delete('/api/v1/admin/users/profile/delete/:id', [authJwt.isAdmin], auth.deleteUser);
     app.get('/api/v1/admin/users/pending-verification', [authJwt.isAdmin], auth.getPendingVerificationUsers);
     app.put('/api/v1/admin/users/:id/update-verification-status', [authJwt.isAdmin], auth.updateVerificationStatus);
     app.get('/api/v1/admin/verified-users', [authJwt.isAdmin], auth.getVerifiedUsers);
+    app.get('/api/v1/admin/rejected-users', [authJwt.isAdmin], auth.getRejectUsers);
     app.post('/api/v1/admin/locations/create', [authJwt.isAdmin], auth.createLocation);
     app.get('/api/v1/admin/locations/getAll', [authJwt.isAdmin], auth.getAllLocations);
     app.get('/api/v1/admin/locations/:id', [authJwt.isAdmin], auth.getLocationById);
@@ -125,7 +131,12 @@ module.exports = (app) => {
     app.get('/api/v1/admin/QRCode/get/:userId', [authJwt.isAdmin], auth.getQrCodeForVendor);
     app.put('/api/v1/admin/QRCode/update/:userId', [authJwt.isAdmin], auth.updateQrCodeForVendor);
     app.delete('/api/v1/admin/QRCode/delete/:userId', [authJwt.isAdmin], auth.deleteQrCodeForVendor);
-
+    app.get("/api/v1/admin/get/AllFranchiseUser", [authJwt.isAdmin], auth.getAllFranchiseUser);
+    app.post('/api/v1/admin/commissions/:partner', [authJwt.isAdmin], auth.createCommission);
+    app.get('/api/v1/admin/commissions', [authJwt.isAdmin], auth.getAllCommissions);
+    app.get('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.getCommissionById);
+    app.put('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.updateCommission);
+    app.delete('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.deleteCommission);
 
 
 

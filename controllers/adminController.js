@@ -25,6 +25,7 @@ const RefundCharge = require('../models/refundChargeModel');
 const Refund = require('../models/refundModel');
 const QRCode = require('qrcode');
 const firebase = require('../middlewares/firebase');
+const Commission = require('../models/commisionModel');
 
 
 
@@ -81,11 +82,16 @@ exports.signin = async (req, res) => {
 
 exports.update = async (req, res) => {
     try {
-        const { firstName, lastName, email, mobileNumber, password } = req.body;
+        const { firstName, lastName, email, mobileNumber, password, confirmPassword } = req.body;
         const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).send({ message: "not found" });
         }
+
+        if (password !== confirmPassword) {
+            return res.status(400).json({ status: 400, message: 'Passwords do not match' });
+        }
+
         user.firstName = firstName || user.firstName;
         user.lastName = lastName || user.lastName;
         user.email = email || user.email;
@@ -100,6 +106,82 @@ exports.update = async (req, res) => {
         return res.status(500).send({
             message: "internal server error " + err.message,
         });
+    }
+};
+
+exports.uploadIdPicture = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $set: { 'uploadId.frontImage': req.file.path } },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Uploaded successfully', data: updatedUser.uploadId.frontImage });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to upload profile picture', error: error.message });
+    }
+};
+
+exports.updateDocuments = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const { uploadId, drivingLicense } = req.body;
+
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: userId },
+            {
+                $set: {
+                    'uploadId.frontImage': uploadId.frontImage || null,
+                    'uploadId.backImage': uploadId.backImage || null,
+                    'uploadId.aadharCardNo': uploadId.aadharCardNo || null,
+                    'drivingLicense.frontImage': drivingLicense.frontImage || null,
+                    'drivingLicense.backImage': drivingLicense.backImage || null,
+                    'drivingLicense.drivingLicenseNo': drivingLicense.drivingLicenseNo || null,
+                },
+            },
+            { new: true }
+        );
+
+        if (updatedUser) {
+            return res.status(200).json({ status: 200, message: 'Documents updated successfully', data: updatedUser });
+        } else {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.uploadProfilePicture = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        if (!req.file) {
+            return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(userId, { image: req.file.path, }, { new: true });
+
+        if (!updatedUser) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Profile Picture Uploaded successfully', data: updatedUser });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to upload profile picture', error: error.message });
     }
 };
 
@@ -263,6 +345,67 @@ exports.getAllUser = async (req, res) => {
     }
 };
 
+exports.getAllUserByType = async (req, res) => {
+    try {
+        const { userType } = req.params;
+
+        const users = await User.find({ userType: userType }).populate('city');
+        if (!users || users.length === 0) {
+            return res.status(404).json({ status: 404, message: 'Users not found' });
+        }
+
+        const formattedUsers = users.map(user => ({
+            _id: user._id,
+            user: user,
+            memberSince: user.createdAt.toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'numeric',
+                year: 'numeric',
+            }),
+        }));
+
+        return res.status(200).json({
+            status: 200,
+            data: formattedUsers,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.updateUserDetails = async (req, res) => {
+    try {
+        const { firstName, lastName, email, mobileNumber, password, confirmPassword, status } = req.body;
+        const userId = req.params.id;
+
+        if (password !== confirmPassword) {
+            return res.status(400).json({ status: 400, message: 'Passwords do not match' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.firstName = firstName || user.firstName;
+        user.lastName = lastName || user.lastName;
+        user.email = email || user.email;
+        user.status = status || user.status;
+        user.mobileNumber = mobileNumber || user.mobileNumber;
+        if (password) {
+            user.password = bcrypt.hashSync(password, 8);
+        }
+
+        const updatedUser = await user.save();
+
+        return res.status(200).json({ message: 'User details updated successfully', data: updatedUser });
+    } catch (err) {
+        console.error('Error updating user details:', err);
+        return res.status(500).json({ message: 'Internal server error', error: err.message });
+    }
+};
+
 exports.getUserById = async (req, res) => {
     try {
         const { userId } = req.params;
@@ -325,7 +468,7 @@ exports.getPendingVerificationUsers = async (req, res) => {
 exports.updateVerificationStatus = async (req, res) => {
     try {
         const userId = req.params.id;
-        const { isVerified } = req.body;
+        const { isVerified, remarks } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -333,6 +476,14 @@ exports.updateVerificationStatus = async (req, res) => {
         }
 
         user.isVerified = isVerified;
+        user.remarks = remarks;
+
+        if (isVerified === false) {
+            user.isRejectUser = true;
+        } else if (isVerified === true) {
+            user.isRejectUser = false;
+        }
+
         await user.save();
 
         const welcomeMessage = `Welcome, ${user.firstName}! Your Account Is Verifed By Admin Now You Can Book Your First Ride.`;
@@ -365,6 +516,21 @@ exports.getVerifiedUsers = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ status: 500, message: 'Failed to retrieve verified users', error: error.message });
+    }
+};
+
+exports.getRejectUsers = async (req, res) => {
+    try {
+        const verifiedUsers = await User.find({ isVerified: false, isRejectUser: true });
+
+        if (!verifiedUsers || verifiedUsers.length === 0) {
+            return res.status(404).json({ status: 404, message: 'No rejected users found' });
+        }
+
+        return res.status(200).json({ status: 200, data: verifiedUsers });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Failed to retrieve Rejected users', error: error.message });
     }
 };
 
@@ -529,7 +695,7 @@ exports.getLocationsByType = async (req, res) => {
 
 exports.createStore = async (req, res) => {
     try {
-        const { name, location, isAvailable, openTime, closeTime } = req.body;
+        const { name, location, isAvailable, openTime, closeTime, userType, partner } = req.body;
 
         if (!req.file) {
             return res.status(400).json({ status: 400, error: "Image file is required" });
@@ -547,7 +713,9 @@ exports.createStore = async (req, res) => {
             location,
             isAvailable: isAvailable || true,
             openTime,
-            closeTime
+            closeTime,
+            userType,
+            partner
         });
 
         return res.status(201).json({ status: 201, message: 'Store created successfully', data: newStore });
@@ -559,7 +727,7 @@ exports.createStore = async (req, res) => {
 
 exports.getAllStores = async (req, res) => {
     try {
-        const stores = await Store.find().populate('location');
+        const stores = await Store.find().populate('location partner');
 
         return res.status(200).json({ status: 200, data: stores });
     } catch (error) {
@@ -571,7 +739,7 @@ exports.getAllStores = async (req, res) => {
 exports.getStoreById = async (req, res) => {
     try {
         const storeId = req.params.storeId;
-        const store = await Store.findById(storeId).populate('location');
+        const store = await Store.findById(storeId).populate('location partner');
 
         if (!store) {
             return res.status(404).json({ status: 404, message: 'Store not found', data: null });
@@ -587,7 +755,7 @@ exports.getStoreById = async (req, res) => {
 exports.updateStoreById = async (req, res) => {
     try {
         const storeId = req.params.storeId;
-        const { name, location, isAvailable, openTime, closeTime } = req.body;
+        const { name, location, isAvailable, openTime, closeTime, userType, partner } = req.body;
 
         const store = await Store.findById(storeId);
         if (!store) {
@@ -623,6 +791,8 @@ exports.updateStoreById = async (req, res) => {
         store.isAvailable = isAvailable || store.isAvailable;
         store.openTime = openTime || store.openTime;
         store.closeTime = closeTime || store.closeTime;
+        store.userType = userType || store.userType;
+        store.partner = partner || store.partner;
 
         const updatedStore = await store.save();
 
@@ -650,13 +820,13 @@ exports.deleteStoreById = async (req, res) => {
 };
 
 exports.registrationPartnerByAdmin = async (req, res) => {
-    const { mobileNumber, email } = req.body;
+    const { mobileNumber, email, userType } = req.body;
     try {
         req.body.email = email.split(" ").join("").toLowerCase();
-        let user = await User.findOne({ $and: [{ $or: [{ email: req.body.email }, { mobileNumber: mobileNumber }] }], userType: "PARTNER" });
+        let user = await User.findOne({ $and: [{ $or: [{ email: req.body.email }, { mobileNumber: mobileNumber }] }], userType: userType });
         if (!user) {
             req.body.password = bcrypt.hashSync(req.body.password, 8);
-            req.body.userType = "PARTNER";
+            req.body.userType = userType;
             req.body.accountVerification = true;
             const userCreate = await User.create(req.body);
             return res.status(200).send({ message: "registered successfully ", data: userCreate, });
@@ -2559,5 +2729,136 @@ exports.deleteQrCodeForVendor = async (req, res) => {
     } catch (error) {
         console.error('Error deleting QR Code:', error.message);
         return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.getAllFranchiseUser = async (req, res) => {
+    try {
+        const users = await User.find({ userType: "FRANCHISE-PARTNER" }).populate('city');
+
+        if (!users || users.length === 0) {
+            return res.status(404).json({ status: 404, message: 'Franchise partner users not found' });
+        }
+
+        const formattedUsers = [];
+        for (const user of users) {
+            const checkStore = await Store.find({ partner: user._id }).populate('location partner');
+            if (!checkStore) {
+                continue;
+            }
+
+            const formattedUser = {
+                _id: user._id,
+                user: user,
+                stores: checkStore,
+                memberSince: user.createdAt.toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'numeric',
+                    year: 'numeric',
+                }),
+            };
+            formattedUsers.push(formattedUser);
+        }
+
+        return res.status(200).json({
+            status: 200,
+            data: formattedUsers,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: 'Internal Server Error' });
+    }
+};
+
+exports.createCommission = async (req, res) => {
+    try {
+        const { partner } = req.params;
+        const { store, commissionPercentage } = req.body;
+
+        const user = await User.findById(partner);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const checkStore = await Store.findById(store).populate('location partner');
+        if (!checkStore) {
+            return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        const existingCommission = await Commission.findOne({ partner, store });
+        if (existingCommission) {
+            return res.status(400).json({ status: 400, message: 'Commission already exists for this partner and store' });
+        }
+
+        const commission = new Commission({
+            partner,
+            store,
+            commissionPercentage
+        });
+
+        const newCommission = await commission.save();
+
+        return res.status(201).json({ status: 201, message: 'Commission created successfully', data: newCommission });
+    } catch (error) {
+        console.error('Error creating commission:', error);
+        return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
+    }
+};
+
+
+exports.getAllCommissions = async (req, res) => {
+    try {
+        const commissions = await Commission.find().populate('store partner');
+        return res.status(200).json({ status: 200, message: 'Commissions found', data: commissions });
+    } catch (error) {
+        console.error('Error fetching commissions:', error);
+        return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
+    }
+};
+
+exports.getCommissionById = async (req, res) => {
+    try {
+        const commission = await Commission.findById(req.params.id);
+        if (!commission) {
+            return res.status(404).json({ status: 404, message: 'Commission not found' });
+        }
+        return res.status(200).json({ status: 200, message: 'Commission found', data: commission });
+    } catch (error) {
+        console.error('Error fetching commission:', error);
+        return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
+    }
+};
+
+exports.updateCommission = async (req, res) => {
+    try {
+        const { partner, store, commissionPercentage } = req.body;
+
+        const commission = await Commission.findByIdAndUpdate(
+            req.params.id,
+            { partner, store, commissionPercentage },
+            { new: true }
+        );
+
+        if (!commission) {
+            return res.status(404).json({ status: 404, message: 'Commission not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Commission updated successfully', data: commission });
+    } catch (error) {
+        console.error('Error updating commission:', error);
+        return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
+    }
+};
+
+exports.deleteCommission = async (req, res) => {
+    try {
+        const commission = await Commission.findByIdAndDelete(req.params.id);
+        if (!commission) {
+            return res.status(404).json({ status: 404, message: 'Commission not found' });
+        }
+        return res.status(200).json({ status: 200, message: 'Commission deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting commission:', error);
+        return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
     }
 };
