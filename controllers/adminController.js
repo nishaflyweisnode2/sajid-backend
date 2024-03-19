@@ -72,6 +72,20 @@ exports.signin = async (req, res) => {
             mobileNumber: user.mobileNumber,
             email: user.email,
             userType: user.userType,
+            isDashboard: true,
+            isCommissionManage: true,
+            isPrivacyPolicy: true,
+            isOnboardingManage: true,
+            isBikeManagement: true,
+            isTermAndConditions: true,
+            isManageCustomer: true,
+            isPushNotification: true,
+            isManagePromoCode: true,
+            isAllAccessories: true,
+            isManageStores: true,
+            isCustomerStories: true,
+            isTotalOrders: true,
+            isRoleAccessManage: true,
         }
         return res.status(201).send({ data: obj, accessToken: accessToken });
     } catch (error) {
@@ -695,10 +709,29 @@ exports.getLocationsByType = async (req, res) => {
 
 exports.createStore = async (req, res) => {
     try {
-        const { name, location, isAvailable, openTime, closeTime, userType, partner } = req.body;
+        const { name, location, isAvailable, openTime, closeTime, userType, partner, bike, accessory } = req.body;
 
         if (!req.file) {
             return res.status(400).json({ status: 400, error: "Image file is required" });
+        }
+
+        const user = await User.findById(partner);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'Partner not found' });
+        }
+
+        if (bike) {
+            const checkBike = await Bike.findById(bike);
+            if (!checkBike) {
+                return res.status(404).json({ status: 404, message: 'Bike not found' });
+            }
+        }
+
+        if (accessory) {
+            const checkAccessory = await Accessory.findById(accessory).populate('category');
+            if (!checkAccessory) {
+                return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+            }
         }
 
         const existingLocation = await Location.findById(location);
@@ -715,7 +748,9 @@ exports.createStore = async (req, res) => {
             openTime,
             closeTime,
             userType,
-            partner
+            partner,
+            bike,
+            accessory
         });
 
         return res.status(201).json({ status: 201, message: 'Store created successfully', data: newStore });
@@ -755,11 +790,30 @@ exports.getStoreById = async (req, res) => {
 exports.updateStoreById = async (req, res) => {
     try {
         const storeId = req.params.storeId;
-        const { name, location, isAvailable, openTime, closeTime, userType, partner } = req.body;
+        const { name, location, isAvailable, openTime, closeTime, userType, partner, bike, accessory } = req.body;
 
         const store = await Store.findById(storeId);
         if (!store) {
             return res.status(404).json({ status: 404, message: 'Store not found', data: null });
+        }
+
+        const user = await User.findById(partner);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'Partner not found' });
+        }
+
+        if (bike) {
+            const checkBike = await Bike.findById(bike);
+            if (!checkBike) {
+                return res.status(404).json({ status: 404, message: 'Bike not found' });
+            }
+        }
+
+        if (accessory) {
+            const checkAccessory = await Accessory.findById(accessory).populate('category');
+            if (!checkAccessory) {
+                return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
+            }
         }
 
         if (location) {
@@ -793,6 +847,8 @@ exports.updateStoreById = async (req, res) => {
         store.closeTime = closeTime || store.closeTime;
         store.userType = userType || store.userType;
         store.partner = partner || store.partner;
+        store.accessory = accessory || store.accessory;
+        store.bike = bike || store.bike;
 
         const updatedStore = await store.save();
 
@@ -915,7 +971,7 @@ exports.deletePartnerIdFromStore = async (req, res) => {
 exports.createBike = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, rentalPrice, pickup, rentalExtendedPrice, depositMoney, totalKm, bikeNumber, isSubscription, subscriptionAmount } = req.body;
+        const { brand, model, type, color, engineHP, mileage, speedLimit, isPremium, isAvailable, numberOfSeats, aboutBike, bikeStock, rentalPrice, pickup, rentalExtendedPrice, depositMoney, totalKm, bikeNumber, isSubscription, subscriptionAmount, vechileMode } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -966,6 +1022,7 @@ exports.createBike = async (req, res) => {
             isAvailable,
             numberOfSeats,
             aboutBike,
+            bikeStock,
             rentalPrice,
             images,
             pickup,
@@ -975,7 +1032,8 @@ exports.createBike = async (req, res) => {
             bikeNumber,
             totalKm,
             subscriptionAmount,
-            isSubscription
+            isSubscription,
+            vechileMode,
         });
 
         return res.status(201).json({ status: 201, message: 'Bike created successfully', data: newBike });
@@ -1017,7 +1075,7 @@ exports.updateBikeById = async (req, res) => {
         const userId = req.user._id;
         const bikeId = req.params.id;
         const updateFields = req.body;
-
+        console.log(userId);
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found' });
@@ -1051,7 +1109,7 @@ exports.updateBikeById = async (req, res) => {
             type: 'drop',
             address: pickupLocation.address,
         });
-
+        console.log(dropLocation);
         if (!dropLocation || dropLocation.user.toString() !== userId.toString()) {
             return res.status(403).json({ status: 403, message: 'You do not have permission to use the specified drop location' });
         }
@@ -1103,13 +1161,14 @@ exports.deleteBikeById = async (req, res) => {
 
 exports.createBikeStoreRelation = async (req, res) => {
     try {
-        const { bikeId, storeId, accessoryId, totalNumberOfBikes, totalNumberOfAccessory } = req.body;
+        const { bikeId, storeId, accessoryId, /*totalNumberOfBikes,*/ /*totalNumberOfAccessory*/ } = req.body;
 
         let totalNumberOfPartnerBikes = 0;
         let totalNumberOfPartnerAccessory = 0;
 
+        let bike;
         if (bikeId) {
-            const bike = await Bike.findById(bikeId);
+            bike = await Bike.findById(bikeId);
             if (!bike) {
                 return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
             }
@@ -1128,8 +1187,9 @@ exports.createBikeStoreRelation = async (req, res) => {
             totalNumberOfPartnerBikes = storeRelations.reduce((total, relation) => total + relation.totalNumberOfPartnerBikes, 0) + 1;
         }
 
+        let accessory;
         if (accessoryId) {
-            const accessory = await Accessory.findById(accessoryId);
+            accessory = await Accessory.findById(accessoryId);
             if (!accessory) {
                 return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
             }
@@ -1152,8 +1212,8 @@ exports.createBikeStoreRelation = async (req, res) => {
             bike: bikeId,
             store: storeId,
             accessory: accessoryId,
-            totalNumberOfBikes: totalNumberOfBikes,
-            totalNumberOfAccessory: totalNumberOfAccessory,
+            totalNumberOfBikes: bike.bikeStock,
+            totalNumberOfAccessory: accessory.stock,
             totalNumberOfPartnerBikes: totalNumberOfPartnerBikes,
             totalNumberOfPartnerAccessory: totalNumberOfPartnerAccessory,
         });
@@ -1212,15 +1272,16 @@ exports.getBikeStoreRelationById = async (req, res) => {
 exports.updateBikeStoreRelation = async (req, res) => {
     try {
         const relationId = req.params.relationId;
-        const { bikeId, storeId, accessoryId, totalNumberOfBikes, totalNumberOfBookedBikes, totalNumberOfAccessory, totalNumberOfBookedAccessory } = req.body;
+        const { bikeId, storeId, accessoryId, totalNumberOfBookedBikes, totalNumberOfBookedAccessory } = req.body;
 
         const existingRelation = await BikeStoreRelation.findById(relationId);
         if (!existingRelation) {
             return res.status(404).json({ status: 404, message: 'Bike-Store relation not found', data: null });
         }
 
+        let bike;
         if (bikeId) {
-            const bike = await Bike.findById(bikeId);
+            bike = await Bike.findById(bikeId);
             if (!bike) {
                 return res.status(404).json({ status: 404, message: 'Bike not found', data: null });
             }
@@ -1231,8 +1292,9 @@ exports.updateBikeStoreRelation = async (req, res) => {
             existingRelation.bike = bikeId;
         }
 
+        let accessory;
         if (accessoryId) {
-            const accessory = await Accessory.findById(accessoryId);
+            accessory = await Accessory.findById(accessoryId);
             if (!accessory) {
                 return res.status(404).json({ status: 404, message: 'Accessory not found', data: null });
             }
@@ -1243,14 +1305,14 @@ exports.updateBikeStoreRelation = async (req, res) => {
             existingRelation.accessory = accessoryId;
         }
 
-        if (totalNumberOfBikes !== undefined) {
-            existingRelation.totalNumberOfBikes = totalNumberOfBikes;
+        if (bikeId) {
+            existingRelation.totalNumberOfBikes = bike.bikeStock;
         }
         if (totalNumberOfBookedBikes !== undefined) {
             existingRelation.totalNumberOfBookedBikes = totalNumberOfBookedBikes;
         }
-        if (totalNumberOfAccessory !== undefined) {
-            existingRelation.totalNumberOfAccessory = totalNumberOfAccessory;
+        if (accessoryId) {
+            existingRelation.totalNumberOfAccessory = accessory.stock;
         }
         if (totalNumberOfBookedAccessory !== undefined) {
             existingRelation.totalNumberOfBookedAccessory = totalNumberOfBookedAccessory;
@@ -1338,19 +1400,39 @@ exports.getAccessoryByPartnerId = async (req, res) => {
 
 exports.createCoupon = async (req, res) => {
     try {
-        const { title, desc, code, discount, isPercent, expirationDate, isActive } = req.body;
+        const { title, desc, code, discount, isPercent, expirationDate, isActive, recipient } = req.body;
 
-        const newCoupon = await Coupon.create({
-            title,
-            desc,
-            code,
-            discount,
-            isPercent,
-            expirationDate,
-            isActive,
-        });
+        let usersToReceiveCoupon = [];
 
-        res.status(201).json({ status: 201, message: 'Coupon created successfully', data: newCoupon });
+        if (recipient === "ALL") {
+            usersToReceiveCoupon = await User.find({});
+        } else if (Array.isArray(recipient)) {
+            usersToReceiveCoupon = await User.find({ _id: { $in: recipient } });
+        } else if (typeof recipient === "string") {
+            const user = await User.findById(recipient);
+            if (user) {
+                usersToReceiveCoupon.push(user);
+            }
+        }
+
+        if (usersToReceiveCoupon.length === 0) {
+            return res.status(404).json({ status: 404, message: 'Recipient users not found' });
+        }
+
+        const createdCoupons = await Promise.all(usersToReceiveCoupon.map(async (user) => {
+            return await Coupon.create({
+                title,
+                desc,
+                code,
+                discount,
+                isPercent,
+                expirationDate,
+                isActive,
+                recipient: user._id
+            });
+        }));
+
+        res.status(201).json({ status: 201, message: 'Coupons created successfully', data: createdCoupons });
     } catch (error) {
         console.error(error);
         res.status(500).json({ status: 500, error: 'Server error' });
@@ -1359,7 +1441,20 @@ exports.createCoupon = async (req, res) => {
 
 exports.getAllCoupons = async (req, res) => {
     try {
-        const coupons = await Coupon.find();
+        const coupons = await Coupon.find().populate('recipient');
+        res.status(200).json({ status: 200, data: coupons });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.getAllCouponsByUserId = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const coupons = await Coupon.find({ recipient: id }).populate('recipient');
+
         res.status(200).json({ status: 200, data: coupons });
     } catch (error) {
         console.error(error);
@@ -1370,7 +1465,7 @@ exports.getAllCoupons = async (req, res) => {
 exports.getCouponById = async (req, res) => {
     try {
         const couponId = req.params.id;
-        const coupon = await Coupon.findById(couponId);
+        const coupon = await Coupon.findById(couponId).populate('recipient');
 
         if (!coupon) {
             return res.status(404).json({ status: 404, message: 'Coupon not found' });
@@ -1401,6 +1496,28 @@ exports.updateCouponById = async (req, res) => {
     }
 };
 
+exports.updateCoupon = async (req, res) => {
+    try {
+        const { recipient } = req.body;
+
+        if (recipient === "ALL") {
+            const { title, desc, code, discount, isPercent, expirationDate, isActive } = req.body;
+            await Coupon.updateMany({}, { title, desc, code, discount, isPercent, expirationDate, isActive });
+            return res.status(200).json({ status: 200, message: "All coupons updated successfully" });
+        } else {
+            const { title, desc, code, discount, isPercent, expirationDate, isActive } = req.body;
+            const updatedCoupon = await Coupon.findOneAndUpdate({ recipient }, { title, desc, code, discount, isPercent, expirationDate, isActive }, { new: true });
+            if (!updatedCoupon) {
+                return res.status(404).json({ status: 404, message: "Coupon not found" });
+            }
+            return res.status(200).json({ status: 200, message: "Coupon updated successfully", data: updatedCoupon });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, error: "Server error" });
+    }
+};
+
 exports.deleteCouponById = async (req, res) => {
     try {
         const couponId = req.params.id;
@@ -1411,6 +1528,21 @@ exports.deleteCouponById = async (req, res) => {
         }
 
         res.status(200).json({ status: 200, message: 'Coupon deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 500, error: 'Server error' });
+    }
+};
+
+exports.deleteAllCoupons = async (req, res) => {
+    try {
+        const result = await Coupon.deleteMany({});
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ status: 404, message: 'No coupons found to delete' });
+        }
+
+        res.status(200).json({ status: 200, message: 'All coupons deleted successfully' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ status: 500, error: 'Server error' });
@@ -1849,7 +1981,7 @@ exports.deleteInquiry = async (req, res) => {
     }
 };
 
-exports.createNotification = async (req, res) => {
+exports.createNotification1 = async (req, res) => {
     try {
         const { recipient, content } = req.body;
 
@@ -1859,6 +1991,57 @@ exports.createNotification = async (req, res) => {
         return res.status(201).json({ status: 201, message: 'Notification created successfully', data: notification });
     } catch (error) {
         return res.status(500).json({ status: 500, message: 'Error creating notification', error: error.message });
+    }
+};
+
+exports.createNotification = async (req, res) => {
+    try {
+        const admin = await User.findById(req.user._id);
+        if (!admin) {
+            return res.status(404).json({ status: 404, message: "Admin not found" });
+        }
+
+        const createNotification = async (userId) => {
+            const notificationData = {
+                recipient: userId,
+                title: req.body.title,
+                content: req.body.content,
+                sendVia: req.body.sendVia,
+                expireIn: req.body.expireIn,
+            };
+            return await Notification.create(notificationData);
+        };
+
+        if (req.body.total === "ALL") {
+            const userData = await User.find({ userType: req.body.sendTo });
+            if (userData.length === 0) {
+                return res.status(404).json({ status: 404, message: "Users not found" });
+            }
+
+            for (const user of userData) {
+                await createNotification(user._id);
+            }
+
+            await createNotification(admin._id);
+
+            return res.status(200).json({ status: 200, message: "Notifications sent successfully to all users." });
+        }
+
+        if (req.body.total === "SINGLE") {
+            const user = await User.findById(req.body._id);
+            if (!user || user.userType !== req.body.sendTo) {
+                return res.status(404).json({ status: 404, message: "User not found or invalid user type" });
+            }
+
+            const notificationData = await createNotification(user._id);
+
+            return res.status(200).json({ status: 200, message: "Notification sent successfully.", data: notificationData });
+        }
+
+        return res.status(400).json({ status: 400, message: "Invalid 'total' value" });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: "Server error", data: {} });
     }
 };
 
@@ -1909,11 +2092,37 @@ exports.getAllNotificationsForUser = async (req, res) => {
     }
 };
 
+exports.deleteNotificationById = async (req, res) => {
+    try {
+        const notificationId = req.params.id;
+        const deletedNotification = await Notification.findByIdAndDelete(notificationId);
+
+        if (!deletedNotification) {
+            return res.status(404).json({ status: 404, message: 'Notification not found' });
+        }
+
+        return res.status(200).json({ status: 200, message: 'Notification deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', error: error.message });
+    }
+};
+
+exports.deleteAllNotifications = async (req, res) => {
+    try {
+        await Notification.deleteMany({});
+        return res.status(200).json({ status: 200, message: 'All notifications deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', error: error.message });
+    }
+};
+
 exports.createTermAndCondition = async (req, res) => {
     try {
-        const { content } = req.body;
+        const { header, headerContent, header1, header1Content, header2, header2Content, header3, header3Content, header4, header4Content, } = req.body;
 
-        const termAndCondition = new TermAndCondition({ content });
+        const termAndCondition = new TermAndCondition({ header, headerContent, header1, header1Content, header2, header2Content, header3, header3Content, header4, header4Content, });
         await termAndCondition.save();
 
         return res.status(201).json({ status: 201, message: 'Terms and Conditions created successfully', data: termAndCondition });
@@ -1957,11 +2166,11 @@ exports.getTermAndConditionById = async (req, res) => {
 exports.updateTermAndConditionById = async (req, res) => {
     try {
         const termAndConditionId = req.params.id;
-        const { content } = req.body;
+        const { header, headerContent, header1, header1Content, header2, header2Content, header3, header3Content, header4, header4Content, } = req.body;
 
         const updatedTermAndCondition = await TermAndCondition.findByIdAndUpdate(
             termAndConditionId,
-            { content },
+            { header, headerContent, header1, header1Content, header2, header2Content, header3, header3Content, header4, header4Content },
             { new: true }
         );
 
@@ -2231,7 +2440,7 @@ exports.deleteBussinesInquary = async (req, res) => {
 exports.replyBussinesInquary = async (req, res) => {
     try {
         const { bussinesInquaryId } = req.params;
-        const { reply } = req.body;
+        const { reply, status } = req.body;
 
         const inquiry = await BussinesInquary.findByIdAndUpdate(
             bussinesInquaryId,
@@ -2247,10 +2456,47 @@ exports.replyBussinesInquary = async (req, res) => {
             });
         }
 
+        inquiry.status = status;
+        await inquiry.save();
+
+
         return res.status(200).json({
             status: 200,
             message: 'Reply added successfully',
             data: inquiry,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Server error', data: null });
+    }
+};
+
+exports.createStory = async (req, res) => {
+    try {
+        const { user, name, text, status } = req.body;
+
+        let images = [];
+        if (req.files) {
+            for (let j = 0; j < req.files.length; j++) {
+                let obj = {
+                    img: req.files[j].path,
+                };
+                images.push(obj);
+            }
+        }
+
+        const newStory = await Story.create({
+            user,
+            name,
+            images,
+            text,
+            status,
+        });
+
+        return res.status(201).json({
+            status: 201,
+            message: 'Story created successfully',
+            data: newStory,
         });
     } catch (error) {
         console.error(error);
@@ -2805,7 +3051,6 @@ exports.createCommission = async (req, res) => {
     }
 };
 
-
 exports.getAllCommissions = async (req, res) => {
     try {
         const commissions = await Commission.find().populate('store partner');
@@ -2859,6 +3104,55 @@ exports.deleteCommission = async (req, res) => {
         return res.status(200).json({ status: 200, message: 'Commission deleted successfully' });
     } catch (error) {
         console.error('Error deleting commission:', error);
+        return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
+    }
+};
+
+exports.updateUserRoles = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const {
+            isDashboard,
+            isCommissionManage,
+            isPrivacyPolicy,
+            isOnboardingManage,
+            isBikeManagement,
+            isTermAndConditions,
+            isManageCustomer,
+            isPushNotification,
+            isManagePromoCode,
+            isAllAccessories,
+            isManageStores,
+            isCustomerStories,
+            isTotalOrders,
+            isRoleAccessManage
+        } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        user.isDashboard = isDashboard || user.isDashboard;
+        user.isCommissionManage = isCommissionManage || user.isCommissionManage;
+        user.isPrivacyPolicy = isPrivacyPolicy || user.isPrivacyPolicy;
+        user.isOnboardingManage = isOnboardingManage || user.isOnboardingManage;
+        user.isBikeManagement = isBikeManagement || user.isBikeManagement;
+        user.isTermAndConditions = isTermAndConditions || user.isTermAndConditions;
+        user.isManageCustomer = isManageCustomer || user.isManageCustomer;
+        user.isPushNotification = isPushNotification || user.isPushNotification;
+        user.isManagePromoCode = isManagePromoCode || user.isManagePromoCode;
+        user.isAllAccessories = isAllAccessories || user.isAllAccessories;
+        user.isManageStores = isManageStores || user.isManageStores;
+        user.isCustomerStories = isCustomerStories || user.isCustomerStories;
+        user.isTotalOrders = isTotalOrders || user.isTotalOrders;
+        user.isRoleAccessManage = isRoleAccessManage || user.isRoleAccessManage;
+
+        const updatedUser = await user.save();
+
+        return res.status(200).json({ status: 200, message: 'User roles updated successfully', data: updatedUser });
+    } catch (error) {
+        console.error(error);
         return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
     }
 };

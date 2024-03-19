@@ -662,7 +662,15 @@ exports.getBikeById = async (req, res) => {
 
 exports.getAllCoupons = async (req, res) => {
     try {
-        const coupons = await Coupon.find();
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
+
+        const coupons = await Coupon.find({ recipient: userId });
+
         res.status(200).json({ status: 200, data: coupons });
     } catch (error) {
         console.error(error);
@@ -2803,6 +2811,7 @@ exports.createBussinesInquary = async (req, res) => {
         const newInquiry = await BussinesInquary.create({
             subjectId,
             messages: [{ message, user: req.user._id }],
+            status: "NEW"
         });
 
         return res.status(201).json({
@@ -2913,7 +2922,13 @@ exports.deleteBussinesInquary = async (req, res) => {
 
 exports.createStory = async (req, res) => {
     try {
+        const userId = req.params.userId;
         const { name, text, status } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found' });
+        }
 
         let images = [];
         if (req.files) {
@@ -2926,6 +2941,7 @@ exports.createStory = async (req, res) => {
         }
 
         const newStory = await Story.create({
+            user: userId,
             name,
             images,
             text,

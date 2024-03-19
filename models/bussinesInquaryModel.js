@@ -12,7 +12,12 @@ const bussinesInquarySchema = new mongoose.Schema(
                 reply: { type: String },
             },
         ],
+        status: {
+            type: String,
+            enum: ["NEW", "RESOLVED"]
+        },
     },
+
     { timestamps: true }
 );
 

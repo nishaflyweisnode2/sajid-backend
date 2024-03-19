@@ -62,9 +62,12 @@ module.exports = (app) => {
     app.get('/api/v1/admin/accessories/partner/:partnerId', [authJwt.isAdmin], auth.getAccessoryByPartnerId);
     app.post('/api/v1/admin/coupons', [authJwt.isAdmin], auth.createCoupon);
     app.get('/api/v1/admin/coupons', [authJwt.isAdmin], auth.getAllCoupons);
+    app.get('/api/v1/admin/coupons/user/:id', [authJwt.isAdmin], auth.getAllCouponsByUserId);
     app.get('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.getCouponById);
+    app.put('/api/v1/admin/coupons', [authJwt.isAdmin], auth.updateCoupon);
     app.put('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.updateCouponById);
     app.delete('/api/v1/admin/coupons/:id', [authJwt.isAdmin], auth.deleteCouponById);
+    app.delete('/api/v1/admin/coupons/delete/all', [authJwt.isAdmin], auth.deleteAllCoupons);
     app.get('/api/v1/admin/bookings', [authJwt.isAdmin], auth.getAllBookings);
     app.get('/api/v1/admin/bookings/:id', [authJwt.isAdmin], auth.getBookingById);
     app.post('/api/v1/admin/categories', [authJwt.isAdmin], accessoryCategoryImage.single('image'), auth.createAccessoryCategory);
@@ -92,6 +95,8 @@ module.exports = (app) => {
     app.put('/api/v1/admin/notifications/:notificationId', [authJwt.isAdmin], auth.markNotificationAsRead);
     app.get('/api/v1/admin/notifications/user/:userId', [authJwt.isAdmin], auth.getNotificationsForUser);
     app.get('/api/v1/admin/notifications/user', [authJwt.isAdmin], auth.getAllNotificationsForUser);
+    app.delete('/api/v1/admin/notifications/delete/all', [authJwt.isAdmin], auth.deleteAllNotifications);
+    app.delete('/api/v1/admin/notifications/delete/:id', [authJwt.isAdmin], auth.deleteNotificationById);
     app.post('/api/v1/admin/terms-and-conditions', [authJwt.isAdmin], auth.createTermAndCondition);
     app.get('/api/v1/admin/terms-and-conditions', [authJwt.isAdmin], auth.getAllTermAndCondition);
     app.get('/api/v1/admin/terms-and-conditions/:id', [authJwt.isAdmin], auth.getTermAndConditionById);
@@ -111,6 +116,7 @@ module.exports = (app) => {
     app.get('/api/v1/admin/bussinesInquary/:bussinesInquaryId', [authJwt.isAdmin], auth.getBussinesInquaryById);
     app.delete('/api/v1/admin/bussinesInquary/:bussinesInquaryId', [authJwt.isAdmin], auth.deleteBussinesInquary);
     app.put('/api/v1/admin/bussinesInquary/:bussinesInquaryId', [authJwt.isAdmin], auth.replyBussinesInquary);
+    app.post('/api/v1/admin/stories/1', [authJwt.isAdmin], storiesImage.array('image'), auth.createStory);
     app.get('/api/v1/admin/stories/pending', [authJwt.isAdmin], auth.getAllPendingStories);
     app.get('/api/v1/admin/stories/approved', [authJwt.isAdmin], auth.getAllApprovedStories);
     app.get('/api/v1/admin/stories/:storyId', [authJwt.isAdmin], auth.getStoryById);
@@ -137,7 +143,7 @@ module.exports = (app) => {
     app.get('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.getCommissionById);
     app.put('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.updateCommission);
     app.delete('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.deleteCommission);
-
+    app.put('/api/v1/admin/users/:userId/roles', [authJwt.isAdmin], auth.updateUserRoles);
 
 
 

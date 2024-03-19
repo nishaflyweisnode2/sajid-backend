@@ -6,9 +6,17 @@ const notificationSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    title: {
+        type: String
+    },
     content: {
         type: String,
         required: true,
+    },
+    sendVia: {
+        type: String,
+        enum: ['FCM', 'SMS', 'EMAIL', 'NOTIFICATION'],
+        default: 'NOTIFICATION',
     },
     status: {
         type: String,
@@ -18,6 +26,9 @@ const notificationSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
+    },
+    expireIn: {
+        type: Date,
     },
 });
 

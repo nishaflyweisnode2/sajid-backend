@@ -116,6 +116,67 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    status: {
+        type: Boolean,
+        default: false
+    },
+    isDashBoard: {
+        type: Boolean,
+        default: false
+    },
+    isCommissionManage: {
+        type: Boolean,
+        default: false
+    },
+    isPrivacyPolicy: {
+        type: Boolean,
+        default: false
+    },
+    isOnBoardingManage: {
+        type: Boolean,
+        default: false
+    },
+    isBikeManagement: {
+        type: Boolean,
+        default: false
+    },
+    isTermAndConditions: {
+        type: Boolean,
+        default: false
+    },
+    ismanageCustomer: {
+        type: Boolean,
+        default: false
+    },
+    isPushNotification: {
+        type: Boolean,
+        default: false
+    },
+    isManagePromoCode: {
+        type: Boolean,
+        default: false
+    },
+    isAllAccessories: {
+        type: Boolean,
+        default: false
+    },
+    isManageStores: {
+        type: Boolean,
+        default: false
+    },
+    isCustomerStories: {
+        type: Boolean,
+        default: false
+    },
+    isTotalOrders: {
+        type: Boolean,
+        default: false
+    },
+    isRoleAccessManage: {
+        type: Boolean,
+        default: false
+    },
+   
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

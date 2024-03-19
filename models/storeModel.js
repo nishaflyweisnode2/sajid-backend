@@ -7,6 +7,14 @@ const storeSchema = new mongoose.Schema(
             ref: 'User',
             default: null
         },
+        bike: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Bike',
+        },
+        accessory: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Accessory',
+        },
         name: {
             type: String,
             required: true,

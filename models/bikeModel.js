@@ -63,6 +63,10 @@ const bikeSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        bikeStock: {
+            type: Number,
+            default: 0,
+        },
         depositMoney: {
             type: Number,
         },
@@ -103,6 +107,10 @@ const bikeSchema = new mongoose.Schema(
         drop: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Location',
+        },
+        vechileMode: {
+            type: String,
+            enum: ["SUBSCRIPTION", "DAILY"],
         },
     },
     { timestamps: true }
