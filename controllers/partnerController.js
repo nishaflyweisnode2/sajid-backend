@@ -15,8 +15,27 @@ const Accessory = require('../models/accessory/accessoryModel')
 const Order = require('../models/orderModel')
 const mongoose = require('mongoose');
 const Notification = require('../models/notificationModel');
+const { update } = require('./adminController');
+const PDFDocument = require("pdfkit-table");
+const doc = new PDFDocument({ autoFirstPage: true, margin: 10, size: 'A4' });
+const nodemailer = require('nodemailer')
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const UserDetails = require('../models/userRefundModel');
+const RefundCharge = require('../models/refundChargeModel');
+const Refund = require('../models/refundModel');
 
 
+
+// Configure Cloudinary with your credentials
+cloudinary.config({
+    cloud_name: process.env.CLOUD_NAME,
+    api_key: process.env.CLOUD_KEY,
+    api_secret: process.env.CLOUD_SECRET,
+});
 
 
 exports.registration = async (req, res) => {
@@ -938,11 +957,247 @@ exports.approveTripEndDetailsVerifyOtp = async (req, res) => {
             },
             { new: true }
         );
+        console.log(userId);
+        const userDetails = await UserDetails.findOne({ userId: userId });
 
+        // if (!userDetails) {
+        //     return res.status(404).json({ status: 404, message: 'User details not found', data: null });
+        // }
+
+        const refundCharges = await RefundCharge.findOne();
+        const refundAmount = booking.depositedMoney
+        const newRefund = new Refund({
+            booking: booking._id,
+            refundAmount: refundAmount,
+            refundCharges: refundCharges.refundAmount || 0,
+            totalRefundAmount: refundAmount - refundCharges.refundAmount,
+            type: "WALLET",
+            refundStatus: 'PENDING',
+            refundDetails: "WALLET",
+            upiId: userDetails.upiId,
+            accountNo: userDetails.accountNumber,
+            branchName: userDetails.branchName,
+            ifscCode: userDetails.ifscCode,
+            refundTransactionId: '',
+        });
+
+
+        const savedRefund = await newRefund.save();
+        console.log("booking.totalPrice", booking.totalPrice);
+        booking.status = 'CANCELLED';
+        booking.refundPreference = "WALLET";
+        booking.upiId = userDetails.upiId;
+        booking.accountNo = userDetails.accountNumber;
+        booking.branchName = userDetails.branchName;
+        booking.ifscCode = userDetails.ifscCode;
+        booking.refund = savedRefund._id;
+        await booking.save();
+        const welcomeMessage = `Welcome, ${user.mobileNumber}! Your Booking is Complete and your security refund payment is initiated.`;
+        const welcomeNotification = new Notification({
+            recipient: booking.user._id,
+            content: welcomeMessage,
+            type: 'welcome',
+        });
+        await welcomeNotification.save();
+
+        if (updatedBooking.status === "COMPLETED") {
+            let line_items = [];
+            let name, obj2;
+            if (updatedBooking.bike != (null || undefined)) {
+                let findBike = await Bike.findOne({ _id: updatedBooking.bike });
+                if (findBike) {
+                    name = findBike.brand;
+                    obj2 = {
+                        BikeNmae: name,
+                        BikeModel: findBike.model,
+                        AboutBike: findBike.aboutBike,
+                        BIkeNo: findBike.bikeNumber,
+                        BikeType: findBike.type,
+                        PickupDate: updatedBooking.pickupDate,
+                        DropOffDate: updatedBooking.dropOffDate,
+                        PickupTime: updatedBooking.pickupTime,
+                        DropOffTime: updatedBooking.dropOffTime,
+                        status: updatedBooking.status,
+                        paymentStatus: updatedBooking.paymentStatus,
+                        depositedMoney: updatedBooking.depositedMoney,
+                        tax: updatedBooking.taxAmount,
+                        paidAmount: updatedBooking.price,
+                        total: updatedBooking.totalPrice,
+                    }
+                    line_items.push(obj2)
+                }
+            } else {
+                obj2 = {
+                    BikeNmae: name,
+                    BikeModel: findBike.model,
+                    AboutBike: findBike.aboutBike,
+                    BIkeNo: findBike.bikeNumber,
+                    BikeType: findBike.type,
+                    PickupDate: updatedBooking.pickupDate,
+                    DropOffDate: updatedBooking.dropOffDate,
+                    PickupTime: updatedBooking.pickupTime,
+                    DropOffTime: updatedBooking.dropOffTime,
+                    status: updatedBooking.status,
+                    paymentStatus: updatedBooking.paymentStatus,
+                    depositedMoney: updatedBooking.depositedMoney,
+                    tax: updatedBooking.taxAmount,
+                    paidAmount: updatedBooking.price,
+                    total: updatedBooking.totalPrice,
+                }
+                line_items.push(obj2)
+            }
+            console.log(obj2);
+            let hr = new Date(Date.now()).getHours();
+            let date = new Date(Date.now()).getDate();
+            if (date < 10) {
+                date = '' + 0 + parseInt(date);
+            } else {
+                date = parseInt(date);
+            }
+            let month = new Date(Date.now()).getMonth() + 1;
+            if (month < 10) {
+                month = '' + 0 + parseInt(month);
+            } else {
+                month = parseInt(month);
+            }
+            let year = new Date(Date.now()).getFullYear();
+            let fullDate = (`${date}/${month}/${year}`).toString();
+            let min = new Date(Date.now()).getMinutes();
+            if (hr < 10) {
+                hr = '' + 0 + parseInt(hr);
+            } else {
+                hr = parseInt(hr);
+            }
+            if (min < 10) {
+                min = '' + 0 + parseInt(min);
+            } else {
+                min = parseInt(min);
+            }
+
+            let bsa64 = 'data:image/png;base64,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'
+            doc.image(`${bsa64}`, 0, 15, { width: 100 }).text('ALKASWA RENTAL PRIVATE LIMITED', 200, 45);
+            doc.moveDown();
+            doc.moveDown();
+            doc.text('A 67, NEW MAN ROAD NOIDA Mob:1234567890', 170, 60)
+            doc.moveDown();
+            let table1 = [
+                ["Booking: Complete", "", "", "", "", "Invoice No: ", `${updatedBooking._id}`],
+                [`${user.city}`, "", "", "", "", "Invoice Date :", `${fullDate} ${hr}:${min}`],
+                [`Tel: ${user.mobileNumber || "XXXXX"}`, "", "", "", "", "", ``],
+            ]
+            const tableArray = {
+                headers: ["INVOICE To", "", "", "", "", "", "INVOICE", ""],
+                rows: table1,
+            };
+            doc.moveDown();
+            doc.moveDown();
+            doc.moveDown();
+            doc.table(tableArray, { width: 550, x: 15, y: 0 }); // A4 595.28 x 841.89 (portrait) (about width sizes)
+            const table = {
+                headers: [
+                    { label: "#", property: 'Sno', width: 15, renderer: null },
+                    { label: "BikeNmae", property: 'BikeNmae', width: 55, renderer: null },
+                    { label: "BikeModel", property: 'BikeModel', width: 55, renderer: null },
+                    { label: "AboutBike", property: 'AboutBike', width: 95, renderer: null },
+                    { label: "BIkeNo", property: 'BIkeNo', width: 60, renderer: null },
+                    { label: "status", property: 'status', width: 55, renderer: null },
+                    { label: "paymentStatus", property: 'paymentStatus', width: 55, renderer: null },
+
+                    {
+                        label: "Price", property: 'paidAmount', width: 35,
+                        renderer: (value, indexColumn, indexRow, row) => { return `${Number(value).toFixed(2)}` }
+                    },
+                    {
+                        label: "DepositeMoney", property: 'depositedMoney', width: 55,
+                        renderer: (value, indexColumn, indexRow, row) => { return `${Number(value).toFixed(2)}` }
+                    },
+                ],
+                datas: line_items,
+            };
+            doc.moveDown();
+            doc.table(table, {
+                prepareHeader: () => doc.font("Helvetica-Bold").fontSize(6),
+                prepareRow: (row, indexColumn, indexRow, rectRow) => doc.font("Helvetica").fontSize(6),
+            });
+
+            doc.moveDown();
+            let table13 = [
+                ["", "", "", "", "", "TAX AMOUNT", "", "AMOUNT"],
+                ["ALKASWA RENTAL", "PRIVATE LIMITED", "", "", "", `₹${updatedBooking?.taxAmount}`, "", `₹${updatedBooking?.totalPrice}`],
+            ]
+            const tableArray4 = {
+                headers: ["", "", "", "", "", "", "", ""],
+                rows: table13,
+            };
+            doc.table(tableArray4, { width: 550, x: 10, y: 0 });
+            doc.text('VAT NO: GB350971689    CO RegNo:1139394    AWRS NO: XVAW00000113046', 115, 690).font("Helvetica").fontSize(16);
+            doc.text('THANK YOU FOR YOUR VALUE CUSTOM', 100, 710).font("Helvetica").fontSize(8);
+            doc.text('GOODS WITHOUT ENGLISH INGREDIENTS SHOULD BE LABELLED ACCORDINGLY BEFORE SALE', 98, 725).font("Helvetica").fontSize(5);
+            doc.text('The goods once sold will not be returnable unless agreed. Pallet must be returned or a charge will be made', 110, 735).font("Helvetica").fontSize(35);
+            let pdfBuffer = await new Promise((resolve) => {
+                let chunks = [];
+                doc.on('data', (chunk) => chunks.push(chunk));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+                doc.end();
+            });
+            console.log("pdfBuffer", pdfBuffer);
+
+            // const tempDir = path.join(__dirname, 'temp');
+            const tempDir = '/tmp';
+
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir);
+            }
+            const tempFilePath = path.join(tempDir, 'document.pdf');
+
+            fs.writeFileSync(tempFilePath, pdfBuffer);
+            console.log("tempFilePath", tempFilePath);
+
+
+            const cloudinaryUploadResponse = await cloudinary.uploader.upload(tempFilePath, {
+                folder: 'pdfs',
+                resource_type: 'raw'
+            });
+
+            fs.unlinkSync(tempFilePath);
+
+            updatedBooking.pdfLink = cloudinaryUploadResponse.secure_url;
+            await updatedBooking.save();
+            console.log("updatedBooking.pdfLink", updatedBooking.pdfLink);
+
+            let transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    "user": "princegap001@gmail.com",
+                    "pass": "scjiukvmscijgvpt"
+                }
+            });
+            var mailOptions = {
+                from: "<do_not_reply@gmail.com>",
+                to: `${user.email}`,
+                subject: 'PDF Attachment',
+                text: 'Please find the attached PDF.',
+                attachments: {
+                    filename: 'document.pdf',
+                    content: pdfBuffer,
+                    contentType: 'application/pdf',
+                },
+            };
+            let info = await transporter.sendMail(mailOptions);
+            if (info) {
+                var mailOptions1 = {
+                    from: "<do_not_reply@gmail.com>",
+                    to: `princegap001@gmail.com`,
+                    subject: 'Booking Recived',
+                    text: `Booking has been Completed ${updatedBooking._id}`,
+                };
+                let info1 = await transporter.sendMail(mailOptions1);
+            }
+        }
 
         return res.status(200).send({ status: 200, message: "OTP verified successfully", data: updatedBooking });
     } catch (err) {
-        console.error(err.message);
+        console.error(err);
         return res.status(500).send({ error: "Internal server error" + err.message });
     }
 };

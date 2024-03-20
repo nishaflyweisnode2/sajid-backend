@@ -144,6 +144,10 @@ module.exports = (app) => {
     app.put('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.updateCommission);
     app.delete('/api/v1/admin/commissions/:id', [authJwt.isAdmin], auth.deleteCommission);
     app.put('/api/v1/admin/users/:userId/roles', [authJwt.isAdmin], auth.updateUserRoles);
+    app.post('/api/v1/admin/bookings/:bookingId/review/:reviewId/reply', [authJwt.isAdmin], auth.addReplyForBooking)
+    app.get('/api/v1/admin/bookings/:bookingId/reviews', [authJwt.isAdmin], auth.getReviewsForBooking);
+    app.get('/api/v1/admin/bookings/reviews/user/:id', [authJwt.isAdmin], auth.getAllReviewsForBooking)
+    app.delete('/api/v1/admin/bookings/:bookingId/reviews', [authJwt.isAdmin], auth.deleteReviewForBooking);
 
 
 

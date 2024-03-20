@@ -95,7 +95,14 @@ module.exports = (app) => {
     app.get('/api/v1/user/top-picks', [authJwt.verifyToken], auth.topPickedBikes);
     app.get('/api/v1/user/gst', [authJwt.verifyToken], auth.getAllGST);
     app.get('/api/v1/user/gst/:id', [authJwt.verifyToken], auth.getGSTById);
-
+    app.post('/api/v1/user/bookings/:bookingId/review', [authJwt.verifyToken], auth.addReviewForBooking)
+    app.get('/api/v1/user/bookings/:bookingId/reviews', [authJwt.verifyToken], auth.getReviewsForBooking)
+    app.get('/api/v1/user/bookings/reviews', [authJwt.verifyToken], auth.getAllReviewsForBooking)
+    app.post('/api/v1/user/refund/add', [authJwt.verifyToken], auth.createUserDetails);
+    app.get('/api/v1/user/refund', [authJwt.verifyToken], auth.getUserDetails);
+    app.get('/api/v1/user/refund/:id', [authJwt.verifyToken], auth.getUserDetailsById);
+    app.put('/api/v1/user/refund/:id', [authJwt.verifyToken], auth.updateUserDetails);
+    app.delete('/api/v1/user/refund', [authJwt.verifyToken], auth.deleteUserDetails);
 
 
 

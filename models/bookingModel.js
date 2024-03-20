@@ -182,6 +182,26 @@ const bookingSchema = new mongoose.Schema(
         accessoriesSize: {
             type: String,
         },
+        rating: {
+            type: Number,
+            min: 1,
+            max: 5,
+            default: null
+        },
+        review: [{
+            userReview: {
+                type: String,
+                default: null
+            },
+            adminReply: {
+                type: String,
+                default: null
+            }
+        }],
+        pdfLink: {
+            type: String,
+            default: null
+        },
 
     },
     { timestamps: true }

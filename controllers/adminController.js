@@ -3156,3 +3156,100 @@ exports.updateUserRoles = async (req, res) => {
         return res.status(500).json({ status: 500, message: 'Internal server error', error: error.message });
     }
 };
+
+exports.addReplyForBooking = async (req, res) => {
+    try {
+        const { bookingId, reviewId } = req.params;
+        const { adminReply } = req.body;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found' });
+        }
+
+        const review = booking.review.id(reviewId);
+        if (!review) {
+            return res.status(404).json({ status: 404, message: 'Review not found' });
+        }
+
+        review.adminReply = adminReply;
+        await booking.save();
+
+        return res.status(201).json({ status: 201, message: 'Admin reply added successfully' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Internal server error' });
+    }
+};
+
+exports.getReviewsForBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const booking = await Booking.findById(bookingId);
+
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found' });
+        }
+
+        return res.status(200).json({ status: 200, data: booking.review });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Internal server error' });
+    }
+};
+
+exports.getAllReviewsForBooking = async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 404, message: 'User not found', data: null });
+        }
+
+        const bookings = await Booking.find({ user: userId });
+
+        const reviews = [];
+        bookings.forEach(booking => {
+            booking.review.forEach(review => {
+                reviews.push({
+                    bookingId: booking._id,
+                    rating: booking.rating,
+                    userReview: review.userReview
+                });
+            });
+        });
+
+        return res.status(200).json({ status: 200, message: 'User reviews retrieved successfully', data: reviews });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Internal server error' });
+    }
+};
+
+exports.deleteReviewForBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { reviewId } = req.body;
+
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ status: 404, message: 'Booking not found' });
+        }
+
+        const reviewIndex = booking.review.findIndex(review => review._id.toString() === reviewId);
+        if (reviewIndex === -1) {
+            return res.status(404).json({ status: 404, message: 'Review not found for this booking' });
+        }
+
+        booking.review.splice(reviewIndex, 1);
+        await booking.save();
+
+
+        return res.status(200).json({ status: 200, message: 'Review deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ status: 500, message: 'Internal server error' });
+    }
+};

@@ -18,6 +18,10 @@ app.get("/", (req, res) => {
     res.send("Hello Sajid Project!");
 });
 
+
+app.use('/invoices', express.static(path.join(__dirname, 'controllers', 'temp')));
+
+
 require('./routes/userRoute')(app);
 require('./routes/adminRoute')(app);
 require('./routes/partnerRoute')(app);
