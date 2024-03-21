@@ -974,7 +974,7 @@ exports.approveTripEndDetailsVerifyOtp = async (req, res) => {
             type: "WALLET",
             refundStatus: 'PENDING',
             refundDetails: "WALLET",
-            upiId: userDetails.upiId,
+            upiId: userDetails.upiId || null,
             accountNo: userDetails.accountNumber,
             branchName: userDetails.branchName,
             ifscCode: userDetails.ifscCode,

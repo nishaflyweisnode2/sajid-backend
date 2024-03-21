@@ -162,7 +162,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/sajid-bike-backend/dev/1710943117894-2024-03-20T13:58:37.894Z/sajid-bike-backend.zip"
+          "S3Key": "serverless/sajid-bike-backend/dev/1711021935653-2024-03-21T11:52:15.653Z/sajid-bike-backend.zip"
         },
         "Handler": "server.handler",
         "Runtime": "nodejs18.x",
@@ -180,14 +180,14 @@
         "AppLogGroup"
       ]
     },
-    "AppLambdaVersionPZWKGeXPI1Vqa7opoiH8fTx3poW9GSb2YRHFzGOAk": {
+    "AppLambdaVersionvZLmnxAlzPIUJgCBrNDelIxwaegJMby3uB9EQwniGc": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "AppLambdaFunction"
         },
-        "CodeSha256": "oyvZxfz/M9uYcut9U3VaasSpeldljMu7OKUm5JJ3UbI="
+        "CodeSha256": "mPNhjjaL/2tPEOwNxTHa1f7xIem2YYp/d0YVpvVahR0="
       }
     },
     "ApiGatewayRestApi": {
@@ -408,7 +408,7 @@
         "AppLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1710943040223": {
+    "ApiGatewayDeployment1711021850059": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
@@ -473,7 +473,7 @@
     "AppLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "AppLambdaVersionPZWKGeXPI1Vqa7opoiH8fTx3poW9GSb2YRHFzGOAk"
+        "Ref": "AppLambdaVersionvZLmnxAlzPIUJgCBrNDelIxwaegJMby3uB9EQwniGc"
       },
       "Export": {
         "Name": "sls-sajid-bike-backend-dev-AppLambdaFunctionQualifiedArn"

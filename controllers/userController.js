@@ -3765,7 +3765,7 @@ exports.getReviewsForBooking = async (req, res) => {
             return res.status(404).json({ status: 404, message: 'User not found', data: null });
         }
 
-        const booking = await Booking.findById(bookingId);
+        const booking = await Booking.findById(bookingId).populate('user');
 
         if (!booking) {
             return res.status(404).json({ status: 404, message: 'Booking not found' });
